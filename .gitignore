@@ -34,6 +34,7 @@ dist/
 build/
 Setup_output/
 *.spec.bak
+_build_run.bat
 
 # ── 发行版配置 + 线路选择（含线路名称，不能公开）─────
 editions/
@@ -45,6 +46,9 @@ release_devfunct.spec
 # ── AI Agent 文件 ──────────────────────────────────────
 AGENTS.md
 CLAUDE.md
+
+# ── 推送脚本（含令牌，绝不公开）───────────────────────
+_push_remotes.bat
 
 # ── 含线路名称的转换脚本 ──────────────────────────────
 scripts/convert_to_default_template.py
