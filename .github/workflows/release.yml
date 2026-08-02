@@ -1,0 +1,60 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build release packages
+        run: |
+          python scripts/pack.py --release --edition generic
+          python scripts/pack.py --release --edition internal
+          # Build all preload editions
+          for dir in editions/preload_*/; do
+            name=$(basename "$dir")
+            python scripts/pack.py --release --edition "$name"
+          done
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist
+          sha256sum *.zip > checksums.sha256
+
+      - name: Extract changelog
+        run: |
+          # Extract the latest version section from CHANGELOG.md
+          python -c "
+          import re
+          text = open('CHANGELOG.md', encoding='utf-8').read()
+          # Find first version section
+          m = re.search(r'## \[([^\]]+)\].*?\n(?=## |\Z)', text, re.DOTALL)
+          if m:
+              open('dist/release_notes.md', 'w', encoding='utf-8').write(m.group(0))
+          else:
+              open('dist/release_notes.md', 'w', encoding='utf-8').write('See CHANGELOG.md for details.')
+          "
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.zip
+            dist/checksums.sha256
+          body_path: dist/release_notes.md
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

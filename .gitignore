@@ -1,0 +1,75 @@
+# ── 用户数据（屏蔽真实线路，但保留空目录骨架）────────
+报站线路文件库/*
+!报站线路文件库/index.json
+兼容模式-海峡报站器文件库/
+
+# ── 大型二进制（运行时依赖）──────────────────────────
+_ffmpeg/
+_tmp_sf14/
+
+# ── 开发内部文件 ──────────────────────────────────────
+insider_resource/
+insider_image/
+.claude/
+新建文件夹/
+
+# ── Python 缓存 ──────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── 一次性数据生成脚本 ────────────────────────────────
+_gen_*.py
+_analyze_*.py
+_merge_cache.py
+
+# ── 临时 / 缓存文件 ──────────────────────────────────
+_xiamen_web_cache*.json
+_final_verify.txt
+nul
+*.tmp
+
+# ── 构建产物 ──────────────────────────────────────────
+dist/
+build/
+Setup_output/
+*.spec.bak
+
+# ── 发行版配置 + 线路选择（含线路名称，不能公开）─────
+editions/
+release_lines.spec
+release_lines_haixia.spec
+release_devfunct.spec
+.release_build_config.json
+
+# ── AI Agent 文件 ──────────────────────────────────────
+AGENTS.md
+CLAUDE.md
+
+# ── 含线路名称的转换脚本 ──────────────────────────────
+scripts/convert_to_default_template.py
+scripts/convert_to_v15_package.py
+
+# ── 存档文件 ──────────────────────────────────────────
+*.zip
+*.7z
+
+# ── 旧版备份 ──────────────────────────────────────────
+*.bak
+*~
+
+# ── OS 文件 ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── 参考文档（非运行时）───────────────────────────────
+BRT*.txt
+厦门BRT*.txt
+
+# ── 输出产物 ──────────────────────────────────────────
+output/
+
+# ── IDE / 编辑器 ─────────────────────────────────────
+.vscode/
+.idea/

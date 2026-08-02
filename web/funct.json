@@ -1,0 +1,17 @@
+{
+  "edition": "dev",
+  "show_legacy_editor": false,
+  "show_dev_track_module": false,
+  "show_update_log": true,
+  "show_build_number": true,
+  "check_updates": true,
+  "show_dev_panel": true,
+  "_labels": {
+    "show_legacy_editor": "旧版编辑器入口",
+    "show_dev_track_module": "开发者调试信息面板",
+    "show_update_log": "更新日志显示",
+    "show_build_number": "Build 标号",
+    "check_updates": "检查更新",
+    "show_dev_panel": "开发者功能入口"
+  }
+}

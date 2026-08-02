@@ -1,0 +1,779 @@
+#!/usr/bin/env python3
+"""
+TABBSS Release Builder — Textual TUI
+======================================
+Interactive packaging tool with real-time UI.
+
+Dependencies: Python 3.10+, textual
+Install: pip install textual
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+DATA_DIR = ROOT / "报站线路文件库"
+HAIXIA_DIR = ROOT / "兼容模式-海峡报站器文件库"
+FUNCT_PATH = ROOT / "web" / "funct.json"
+INDEX_PATH = DATA_DIR / "index.json"
+SETUP_OUT = ROOT / "Setup_output"
+SPEC_LINES = ROOT / "release_lines.spec"
+SPEC_HAIXIA = ROOT / "release_lines_haixia.spec"
+SPEC_FUNCT = ROOT / "release_devfunct.spec"
+
+
+# ── Data loading helpers ──────────────────────────────────────
+
+def load_archive_data():
+    """Load companies and routes from index.json, plus orphans."""
+    if not INDEX_PATH.exists():
+        return [], [], []
+    idx = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
+    companies = idx.get("companies", [])
+    registered_ini = set()
+    for c in companies:
+        for l in c.get("lines", []):
+            registered_ini.add(l["file"])
+
+    SKIP = {".trash", "__pycache__", "web", ".git"}
+    registered_names = {c["name"] for c in companies}
+
+    # Orphan company dirs
+    orphan_dirs = []
+    for item in sorted(DATA_DIR.iterdir()):
+        if item.is_dir() and item.name not in SKIP and not item.name.startswith(".") and not item.name.startswith("_"):
+            if item.name not in registered_names:
+                inis = [str(f.relative_to(DATA_DIR)).replace("\\", "/")
+                        for f in sorted(item.rglob("*.ini")) if f.is_file()
+                        if not any(p.startswith("_") or p.startswith(".") for p in f.relative_to(item).parts[:-1])]
+                if inis:
+                    orphan_dirs.append((item.name, inis))
+
+    # Orphan INI files
+    orphan_inis = []
+    for item in sorted(DATA_DIR.iterdir()):
+        if item.is_dir() and item.name in registered_names:
+            for f in sorted(item.rglob("*.ini")):
+                if f.is_file():
+                    parts = f.relative_to(item).parts
+                    if any(p.startswith("_") or p.startswith(".") for p in parts[:-1]):
+                        continue
+                    rel = str(f.relative_to(DATA_DIR)).replace("\\", "/")
+                    if rel not in registered_ini:
+                        orphan_inis.append(rel)
+
+    return companies, orphan_dirs, orphan_inis
+
+
+def load_haixia_data():
+    """Load haixia compat routes."""
+    if not HAIXIA_DIR.exists():
+        return [], []
+    dirs = sorted([d.name for d in HAIXIA_DIR.iterdir()
+                   if d.is_dir() and not d.name.startswith(".")])
+    orphans = sorted([f.name for f in HAIXIA_DIR.iterdir()
+                      if f.is_file() and not f.name.startswith(".")])
+    return dirs, orphans
+
+
+def load_features():
+    """Load feature config from funct.json."""
+    funct = json.loads(FUNCT_PATH.read_text(encoding="utf-8"))
+    labels = funct.get("_labels", {})
+    features = []
+    for key in ["show_update_log", "show_build_number", "check_updates", "show_dev_track_module"]:
+        features.append({
+            "key": key,
+            "label": labels.get(key, key),
+            "default": funct.get(key, False)
+        })
+    return features
+
+
+def load_persistence():
+    """Load persisted selections from .spec files."""
+    result = {"archive": {}, "haixia": {}, "features": {}}
+    for path, key in [(SPEC_LINES, "archive"), (SPEC_HAIXIA, "haixia"), (SPEC_FUNCT, "features")]:
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                result[key] = data.get(key, {}) if isinstance(data, dict) else {}
+        except Exception:
+            pass
+    return result
+
+
+def save_persistence(archive_sel, haixia_sel, features_sel):
+    """Save selections to .spec files."""
+    SPEC_LINES.write_text(json.dumps({"archive": archive_sel}, ensure_ascii=False, indent=2), encoding="utf-8")
+    SPEC_HAIXIA.write_text(json.dumps({"haixia": haixia_sel}, ensure_ascii=False, indent=2), encoding="utf-8")
+    SPEC_FUNCT.write_text(json.dumps({"features": features_sel}, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# ── Textual App ───────────────────────────────────────────────
+
+from textual.app import App, ComposeResult
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual import on
+from textual.widgets import (
+    Button, Checkbox, Footer, Header, Label, RadioButton, RadioSet,
+    Static, Tree,
+)
+from textual.widgets.tree import TreeNode
+from textual.screen import ModalScreen, Screen
+from textual.binding import Binding
+
+
+class RouteNode(Static):
+    """A route checkbox line."""
+    def __init__(self, route_id, label, checked=True):
+        super().__init__()
+        self.route_id = route_id
+        self.label_text = label
+        self.checked = checked
+
+    def render(self):
+        mark = "[x]" if self.checked else "[ ]"
+        return f"  {mark} {self.label_text}"
+
+
+class CompanyNode(Static):
+    """A company expandable node."""
+    def __init__(self, name, route_count, selected_count, expanded=False):
+        super().__init__()
+        self.name = name
+        self.route_count = route_count
+        self.selected_count = selected_count
+        self.expanded = expanded
+
+    def render(self):
+        arrow = "v" if self.expanded else ">"
+        all_sel = self.selected_count == self.route_count
+        none_sel = self.selected_count == 0
+        mark = "[*]" if all_sel else ("[ ]" if none_sel else "[-]")
+        return f"{arrow} {mark} {self.name} ({self.selected_count}/{self.route_count})"
+
+
+# ── Edition Screen ────────────────────────────────────────────
+
+class EditionScreen(Screen):
+    CSS = """
+    EditionScreen { align: center middle; }
+    #edition-container { width: 50; height: auto; border: solid $primary; padding: 2 4; }
+    #edition-title { text-align: center; text-style: bold; padding-bottom: 1; }
+    #edition-radios { padding: 1 0; }
+    #edition-desc { padding: 1 0; height: 3; color: $text-muted; }
+    #edition-next { margin-top: 1; }
+    """
+
+    def compose(self):
+        yield Container(
+            Label("档案库报站模拟器 — 发行打包工具", id="edition-title"),
+            RadioSet(
+                RadioButton("发行版 (Release) — 公开发布，仅含示例内容", id="rel", value=True),
+                RadioButton("开发版 (Dev) — 内部使用，全部线路和功能", id="dev"),
+                RadioButton("外审版 (Audit) — 外部审核，指定线路", id="audit"),
+                id="edition-radios",
+            ),
+            Label("请选择要打包的版本", id="edition-desc"),
+            Button("下一步 >", variant="primary", id="edition-next"),
+            id="edition-container",
+        )
+
+    def on_mount(self):
+        pass  # Default radio selected via value=True in compose
+
+    def on_button_pressed(self, event):
+        if event.button.id == "edition-next":
+            rs = self.query_one("#edition-radios")
+            edition_id = rs.pressed_button.id if rs.pressed_button else "rel"
+            edition = {"rel": "release", "dev": "dev", "audit": "audit"}[edition_id]
+            self.app.edition = edition
+            self.app.push_screen(RouteScreen())
+
+
+# ── Route Selection Screen ────────────────────────────────────
+
+class RouteScreen(Screen):
+    CSS = """
+    RouteScreen { align: left top; }
+    #route-container { width: 100%; height: 100%; }
+    #route-header { padding: 1 2; text-style: bold; background: $primary; color: $text; }
+    #route-panels { height: 1fr; }
+    #route-left { width: 35%; border-right: solid $primary-background; overflow: auto; }
+    #route-right { width: 1fr; overflow: auto; }
+    #route-footer { padding: 1 2; border-top: solid $primary-background; height: auto; }
+    ListView { height: 1fr; }
+    #route-footer Button { min-width: 12; }
+    """
+
+    def compose(self):
+        self.archive_companies, self.orphan_dirs, self.orphan_inis = load_archive_data()
+        self.haixia_dirs, self.haixia_orphans = load_haixia_data()
+        persisted = load_persistence()
+
+        self.archive_sel = {}
+        prev_archive = persisted.get("archive", {})
+        for comp in self.archive_companies:
+            name = comp["name"]
+            all_routes = [l["file"] for l in comp.get("lines", [])]
+            prev = prev_archive.get(name)
+            self.archive_sel[name] = [f for f in all_routes if f in prev] if prev is not None else list(all_routes)
+        self.archive_sel["__orphan_dirs__"] = prev_archive.get("__orphan_dirs__", {})
+        self.archive_sel["__orphan_inis__"] = prev_archive.get("__orphan_inis__", [])
+
+        self.haixia_sel = {}
+        prev_haixia = persisted.get("haixia", {})
+        for d in self.haixia_dirs:
+            self.haixia_sel[d] = prev_haixia.get(d, True)
+        self.haixia_sel["__orphans__"] = prev_haixia.get("__orphans__", [])
+
+        self.current_view = "archive"
+        self._active_company = None
+
+        from textual.widgets import ListView, ListItem
+
+        yield Container(
+            Label("选择线路 - 左侧点击公司展开路线, 回车切换勾选", id="route-header"),
+            Horizontal(
+                ListView(id="route-left"),
+                ListView(id="route-right"),
+                id="route-panels",
+            ),
+            Horizontal(
+                Button("上一步", id="btn-back"),
+                Button("档案", id="btn-archive"),
+                Button("海峡", id="btn-haixia"),
+                Button("全选", id="btn-all"),
+                Button("全不选", id="btn-none"),
+                Button("完成", variant="primary", id="btn-done"),
+                id="route-footer",
+            ),
+            id="route-container",
+        )
+
+    def on_mount(self):
+        self._refresh_left()
+
+    def _checkbox(self, selected, total):
+        if selected == 0:
+            return "[ ]"
+        elif selected >= total:
+            return "[*]"
+        else:
+            return "[-]"
+
+    def _refresh_left(self):
+        from textual.widgets import ListItem
+        lv = self.query_one("#route-left")
+        lv.clear()
+        if self.current_view == "archive":
+            for comp in self.archive_companies:
+                name = comp["name"]
+                sel = self.archive_sel.get(name, [])
+                total = len(comp.get("lines", []))
+                mark = self._checkbox(len(sel), total)
+                lv.append(ListItem(Label(f"{mark} {name}  ({len(sel)}/{total})")))
+            for oname, ofiles in self.orphan_dirs:
+                checked = self.archive_sel["__orphan_dirs__"].get(oname, False)
+                lv.append(ListItem(Label(f"{'[x]' if checked else '[ ]'} [未注册] {oname}  ({len(ofiles)} INI)", markup=False)))
+            for inif in self.orphan_inis:
+                checked = inif in self.archive_sel["__orphan_inis__"]
+                lv.append(ListItem(Label(f"{'[x]' if checked else '[ ]'} [INI] {inif}", markup=False)))
+        else:
+            for d in self.haixia_dirs:
+                checked = self.haixia_sel.get(d, True)
+                lv.append(ListItem(Label(f"{'[x]' if checked else '[ ]'} {d}", markup=False)))
+            for f in self.haixia_orphans:
+                checked = f in self.haixia_sel.get("__orphans__", [])
+                lv.append(ListItem(Label(f"{'[x]' if checked else '[ ]'} [文件] {f}", markup=False)))
+        # self.query_one("#route-status").update(f"共 {len(lv.children)} 项")
+
+    def _refresh_right(self):
+        from textual.widgets import ListItem
+        lv = self.query_one("#route-right")
+        lv.clear()
+        if not self._active_company or self.current_view != "archive":
+            return
+        comp = next((c for c in self.archive_companies if c["name"] == self._active_company), None)
+        if comp:
+            sel = self.archive_sel.get(self._active_company, [])
+            for line in comp.get("lines", []):
+                checked = line["file"] in sel
+                lv.append(ListItem(Label(f"{'[x]' if checked else '[ ]'} {line.get('name', line['file'])}", markup=False)))
+
+    def _toggle_company(self, name):
+        comp = next((c for c in self.archive_companies if c["name"] == name), None)
+        if not comp:
+            return
+        sel = self.archive_sel.get(name, [])
+        total = len(comp.get("lines", []))
+        self.archive_sel[name] = [] if len(sel) >= total else [l["file"] for l in comp.get("lines", [])]
+        self._refresh_left()
+        self._refresh_right()
+
+    def _toggle_route(self, company_name, route_file):
+        sel = self.archive_sel.get(company_name, [])
+        if route_file in sel:
+            sel.remove(route_file)
+        else:
+            sel.append(route_file)
+        self.archive_sel[company_name] = sel
+        self._refresh_left()
+        self._refresh_right()
+
+    def on_list_view_selected(self, event):
+        left = self.query_one("#route-left")
+        right = self.query_one("#route-right")
+        left_idx = left.index
+        right_idx = right.index
+
+        if left_idx is not None:
+            if self.current_view == "archive":
+                total_companies = len(self.archive_companies)
+                if left_idx < total_companies:
+                    name = self.archive_companies[left_idx]["name"]
+                    self._active_company = name
+                    self._toggle_company(name)
+                elif left_idx < total_companies + len(self.orphan_dirs):
+                    od_idx = left_idx - total_companies
+                    oname = self.orphan_dirs[od_idx][0]
+                    cur = self.archive_sel["__orphan_dirs__"].get(oname, False)
+                    self.archive_sel["__orphan_dirs__"][oname] = not cur
+                    self._refresh_left()
+                else:
+                    ini_idx = left_idx - total_companies - len(self.orphan_dirs)
+                    if ini_idx < len(self.orphan_inis):
+                        inif = self.orphan_inis[ini_idx]
+                        lst = self.archive_sel["__orphan_inis__"]
+                        if inif in lst: lst.remove(inif)
+                        else: lst.append(inif)
+                        self._refresh_left()
+            else:
+                if left_idx < len(self.haixia_dirs):
+                    d = self.haixia_dirs[left_idx]
+                    self.haixia_sel[d] = not self.haixia_sel.get(d, True)
+                else:
+                    f_idx = left_idx - len(self.haixia_dirs)
+                    if f_idx < len(self.haixia_orphans):
+                        f = self.haixia_orphans[f_idx]
+                        lst = self.haixia_sel.get("__orphans__", [])
+                        if f in lst: lst.remove(f)
+                        else: lst.append(f)
+                self._refresh_left()
+        elif right_idx is not None and self._active_company:
+            comp = next((c for c in self.archive_companies if c["name"] == self._active_company), None)
+            if comp and right_idx < len(comp.get("lines", [])):
+                self._toggle_route(self._active_company, comp["lines"][right_idx]["file"])
+
+    def on_button_pressed(self, event: Button.Pressed):
+        bid = event.button.id
+        if bid == "btn-done":
+            self.app.archive_sel = self.archive_sel
+            self.app.haixia_sel = self.haixia_sel
+            save_persistence(self.archive_sel, self.haixia_sel,
+                             self.app.features if hasattr(self.app, 'features') else {})
+            if self.app.edition == "dev":
+                self.app.push_screen(OSScreen())
+            else:
+                self.app.push_screen(FeatureScreen())
+        elif bid == "btn-back":
+            self.app.pop_screen()
+        elif bid == "btn-all":
+            if self.current_view == "archive":
+                for comp in self.archive_companies:
+                    self.archive_sel[comp["name"]] = [l["file"] for l in comp.get("lines", [])]
+                self.archive_sel["__orphan_dirs__"] = {k: True for k in self.archive_sel.get("__orphan_dirs__", {})}
+            else:
+                for d in self.haixia_dirs:
+                    self.haixia_sel[d] = True
+            self._refresh_left()
+            self._refresh_right()
+        elif bid == "btn-none":
+            if self.current_view == "archive":
+                for comp in self.archive_companies:
+                    self.archive_sel[comp["name"]] = []
+                self.archive_sel["__orphan_dirs__"] = {k: False for k in self.archive_sel.get("__orphan_dirs__", {})}
+            else:
+                for d in self.haixia_dirs:
+                    self.haixia_sel[d] = False
+            self._refresh_left()
+            self._refresh_right()
+        elif bid == "btn-archive":
+            self.current_view = "archive"
+            self._active_company = None
+            self.query_one("#route-right").clear()
+            self._refresh_left()
+        elif bid == "btn-haixia":
+            self.current_view = "haixia"
+            self._active_company = None
+            self.query_one("#route-right").clear()
+            self._refresh_left()
+
+
+# ── Feature Selection Screen ──────────────────────────────────
+
+class FeatureScreen(Screen):
+    CSS = """
+    FeatureScreen { align: center middle; }
+    #feat-container { width: 60; height: auto; border: solid $primary; padding: 2 4; }
+    #feat-title { text-align: center; text-style: bold; padding-bottom: 1; }
+    #feat-list { padding: 1 0; }
+    #feat-footer { padding-top: 1; }
+    """
+
+    def compose(self):
+        features = load_features()
+        persisted = load_persistence().get("features", {}).get("features", {})
+        children = [Label("开发者功能开关", id="feat-title")]
+        self.feat_widgets = []
+        for f in features:
+            key = f["key"]
+            default = persisted.get(key, f["default"])
+            cb = Checkbox(f["label"], value=default, id=f"feat-{key}")
+            children.append(cb)
+            self.feat_widgets.append(cb)
+        children.append(Container(
+            Button("< 返回", id="feat-back"),
+            Button("下一步 >", variant="primary", id="feat-next"),
+            id="feat-footer",
+        ))
+        yield Container(*children, id="feat-container")
+
+    def on_button_pressed(self, event):
+        if event.button.id == "feat-next":
+            self.app.features = {}
+            for w in self.feat_widgets:
+                key = w.id.replace("feat-", "")
+                self.app.features[key] = w.value
+            save_persistence(
+                getattr(self.app, 'archive_sel', {}),
+                getattr(self.app, 'haixia_sel', {}),
+                self.app.features,
+            )
+            self.app.push_screen(OSScreen())
+        elif event.button.id == "feat-back":
+            self.app.pop_screen()
+
+
+# ── OS Selection Screen ───────────────────────────────────────
+
+class OSScreen(Screen):
+    CSS = """
+    OSScreen { align: center middle; }
+    #os-container { width: 45; height: auto; border: solid $primary; padding: 2 4; }
+    #os-title { text-align: center; text-style: bold; padding-bottom: 1; }
+    """
+
+    def compose(self):
+        yield Container(
+            Label("选择目标系统", id="os-title"),
+            Checkbox("Windows (.exe + 安装包)", value=True, id="os-win"),
+            Checkbox("macOS (.app + DMG)", value=False, id="os-mac"),
+            Container(
+                Button("< 返回", id="os-back"),
+                Button("开始打包 >", variant="primary", id="os-build"),
+            ),
+            id="os-container",
+        )
+
+    def on_button_pressed(self, event):
+        if event.button.id == "os-build":
+            self.app.target_os = []
+            if self.query_one("#os-win").value:
+                self.app.target_os.append("windows")
+            if self.query_one("#os-mac").value:
+                self.app.target_os.append("macos")
+            self.app.push_screen(ConfirmScreen())
+        elif event.button.id == "os-back":
+            self.app.pop_screen()
+
+
+# ── Confirmation + Build Screen ───────────────────────────────
+
+class ConfirmScreen(Screen):
+    """Confirm and run the build via external script (subprocess)."""
+
+    CSS = """
+    ConfirmScreen { align: center middle; }
+    #confirm-container { width: 70; height: 90%; border: solid $primary; padding: 2 4; }
+    #confirm-title { text-align: center; text-style: bold; }
+    #confirm-body { height: 1fr; padding: 1 0; overflow: auto; }
+    #confirm-footer { dock: bottom; padding-top: 1; }
+    """
+
+    def compose(self):
+        edition_names = {"release": "发行版", "dev": "开发版", "audit": "外审版"}
+        yield Container(
+            Label("确认打包信息", id="confirm-title"),
+            Static(""),
+            Static(f"版本: {edition_names.get(self.app.edition, '?')}"),
+            Static(f"目标系统: {', '.join(self.app.target_os)}"),
+            Static(f"输出目录: {SETUP_OUT}"),
+            Static(""),
+            Static("点击 [开始打包] 后，将保存配置并提示你在终端中执行构建命令。"),
+            Static("这样可以避免长时间编译导致的界面卡顿。"),
+            VerticalScroll(id="confirm-body"),
+            Container(
+                Button("< 返回", id="confirm-back"),
+                Button("开始打包!", variant="primary", id="confirm-go"),
+                id="confirm-footer",
+            ),
+            id="confirm-container",
+        )
+
+    def on_button_pressed(self, event):
+        if event.button.id == "confirm-go":
+            self._do_build()
+        elif event.button.id == "confirm-back":
+            self.app.pop_screen()
+
+    def _do_build(self):
+        # Save selections
+        archive_sel = getattr(self.app, 'archive_sel', {})
+        haixia_sel = getattr(self.app, 'haixia_sel', {})
+        features = getattr(self.app, 'features', {})
+        save_persistence(archive_sel, haixia_sel, features)
+
+        edition = self.app.edition
+        target_os = ','.join(self.app.target_os)
+
+        body = self.query_one("#confirm-body")
+        body.mount(Static(""))
+        body.mount(Static("[配置已保存，正在启动构建...]"))
+        body.mount(Static(""))
+
+        # Build command
+        script = str(ROOT / "scripts" / "build_release.py")
+        cmd = f'"{sys.executable}" "{script}" --edition {edition} --os {target_os}'
+        body.mount(Static(f"命令: {cmd}"))
+        body.mount(Static(""))
+
+        # Launch in external terminal window
+        if sys.platform == "win32":
+            # Windows: new cmd window, stays open after completion
+            bat = ROOT / "_build_run.bat"
+            bat.write_text(f'@echo off\ncd /d "{ROOT}"\n{cmd}\necho.\necho Build finished. Press any key to close.\npause >nul\n', encoding="utf-8")
+            subprocess.Popen(f'start "构建 - TABBSS" cmd /c "{bat}"', shell=True)
+        else:
+            # macOS: new Terminal window
+            subprocess.Popen(["open", "-a", "Terminal", script])
+
+        body.mount(Static("已在外部终端窗口中启动构建。"))
+        body.mount(Static("请查看弹出的终端窗口以跟踪进度。"))
+        body.mount(Static(""))
+        body.mount(Static("按 Ctrl+C 退出此程序。"))
+
+        self.query_one("#confirm-go").disabled = True
+        self.query_one("#confirm-go").label = "已启动"
+
+
+# ── Build helpers ─────────────────────────────────────────────
+
+def _copytree(src, dst, skip_archives=False):
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in src.iterdir():
+        if item.name.startswith(".") and item.name not in (".trash",):
+            continue
+        if skip_archives and item.suffix.lower() in (".zip", ".7z"):
+            continue
+        if item.is_dir():
+            _copytree(item, dst / item.name, skip_archives)
+        else:
+            d = dst / item.name
+            d.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, d)
+
+
+def _build_filtered_data(dst, selection):
+    """Copy selected archive routes to destination."""
+    if not selection:
+        (dst / "index.json").write_text(
+            json.dumps({"version": "V1.51", "companies": []}, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        (dst / ".trash").mkdir(exist_ok=True)
+        return
+
+    index = json.loads(INDEX_PATH.read_text(encoding="utf-8")) if INDEX_PATH.exists() else {"companies": []}
+    filtered_companies = []
+
+    for comp in index.get("companies", []):
+        name = comp["name"]
+        if name in selection:
+            selected_routes = selection[name]
+            if not selected_routes:
+                continue
+            filtered_lines = []
+            comp_dir = dst / name
+            comp_dir.mkdir(parents=True, exist_ok=True)
+            for line in comp.get("lines", []):
+                if line["file"] in selected_routes:
+                    filtered_lines.append(line)
+                    src = DATA_DIR / line["file"]
+                    if src.exists():
+                        shutil.copy2(src, comp_dir / Path(line["file"]).name)
+                        _copy_audio_files(src, comp_dir)
+            if filtered_lines:
+                filtered_companies.append({"name": name, "lines": filtered_lines})
+
+    # Orphan dirs
+    for dname, included in selection.get("__orphan_dirs__", {}).items():
+        if included:
+            src = DATA_DIR / dname
+            if src.is_dir():
+                _copytree(src, dst / dname, skip_archives=True)
+
+    # Orphan INIs
+    for inif in selection.get("__orphan_inis__", []):
+        fp = inif.replace("/", os.sep)
+        src = DATA_DIR / fp
+        if src.exists():
+            d = dst / fp
+            d.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, d)
+            _copy_audio_files(src, d.parent)
+
+    (dst / "index.json").write_text(
+        json.dumps({"version": "V1.51", "companies": filtered_companies},
+                   ensure_ascii=False, indent=2), encoding="utf-8")
+    (dst / ".trash").mkdir(exist_ok=True)
+
+
+def _build_filtered_haixia(dst, selection):
+    """Copy selected haixia routes to destination."""
+    if not selection or not HAIXIA_DIR.exists():
+        return
+    for name, included in selection.items():
+        if name.startswith("__"):
+            continue
+        if included:
+            src = HAIXIA_DIR / name
+            if src.is_dir():
+                _copytree(src, dst / name)
+    for f in selection.get("__orphans__", []):
+        src = HAIXIA_DIR / f
+        if src.exists():
+            shutil.copy2(src, dst / f)
+
+
+def _copy_audio_files(ini_path, dst_dir):
+    """Copy audio files referenced by an INI."""
+    try:
+        text = ini_path.read_text(encoding="utf-8", errors="replace")
+        for m in re.finditer(r'"([^"]+)"', text):
+            fname = m.group(1)
+            if re.search(r'\.(mp3|wav|m4a)$', fname, re.IGNORECASE):
+                src = ini_path.parent / fname
+                if src.exists():
+                    shutil.copy2(src, dst_dir / fname)
+    except Exception:
+        pass
+
+
+def _write_main_py(build_dir):
+    content = (ROOT / "main.py").read_text(encoding="utf-8")
+    (build_dir / "main.py").write_text(content, encoding="utf-8")
+
+
+def _build_nsis(edition, exe_name, ver, build, build_dir):
+    app_names = {"release": "档案库报站模拟器", "dev": "档案库报站模拟器Dev", "audit": "档案库报站模拟器Audit"}
+    dirs = {"release": "TABBSS", "dev": "TABBSS DEV", "audit": "TABBSS AUDIT"}
+    start_menus = {"release": "交通档案库", "dev": "交通档案库 Dev", "audit": "交通档案库 Audit"}
+    keys = {"release": "TABBSS_release", "dev": "TABBSS_dev", "audit": "TABBSS_audit"}
+
+    tpl_path = ROOT / "scripts" / "installer" / "installer.nsi.template"
+    if not tpl_path.exists():
+        return None
+    tpl = tpl_path.read_text(encoding="utf-8")
+    placeholders = {
+        "{{APP_NAME}}": app_names[edition],
+        "{{APP_EXE}}": f"{exe_name}.exe",
+        "{{INSTALLER_OUTPUT}}": str(SETUP_OUT / f"{app_names[edition]}V{ver}-安装程序-Build{build}.exe"),
+        "{{DEFAULT_INSTALL_DIR}}": f"$PROGRAMFILES\\{dirs[edition]}",
+        "{{EDITION_ID}}": keys[edition],
+        "{{VERSION}}": ver,
+        "{{PUBLISHER}}": "哔哩哔哩@交通档案库",
+        "{{APP_URL}}": "https://space.bilibili.com/3546768098724617",
+        "{{START_MENU_GROUP}}": start_menus[edition],
+        "{{BUILD_DIR}}": str(build_dir),
+        "{{ROOT_DIR}}": str(ROOT),
+        "{{LICENSE_PATH}}": str(ROOT / "LICENSE"),
+        "{{WEBVIEW2_BOOTSTRAPPER}}": str(ROOT / "dist" / "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"),
+    }
+    nsi = tpl
+    for k, v in placeholders.items():
+        nsi = nsi.replace(k, v)
+    nsi = nsi.replace(str(ROOT / "TABBSS.exe"), str(SETUP_OUT / f"{exe_name}.exe"))
+
+    gbk_lic = build_dir / "LICENSE_gbk.txt"
+    lic = ROOT / "LICENSE"
+    if lic.exists():
+        gbk_lic.write_text(lic.read_text(encoding="utf-8"), encoding="gbk")
+        nsi = nsi.replace(str(ROOT / "LICENSE"), str(gbk_lic))
+
+    nsi_path = build_dir / "installer.nsi"
+    nsi_path.write_text(nsi, encoding="utf-8-sig")
+
+    makensis = shutil.which("makensis")
+    if not makensis:
+        for p in [r"C:\Program Files (x86)\NSIS\makensis.exe", r"C:\Program Files\NSIS\makensis.exe"]:
+            if Path(p).exists():
+                makensis = p
+                break
+    if makensis:
+        result = subprocess.run([makensis, str(nsi_path)], capture_output=True, text=True)
+        if result.returncode == 0:
+            return str(SETUP_OUT / f"{app_names[edition]}V{ver}-安装程序-Build{build}.exe")
+    return None
+
+
+# ── App Entry ─────────────────────────────────────────────────
+
+class ReleaseApp(App):
+    CSS = """
+    Screen { align: center middle; }
+    """
+
+    BINDINGS = [
+        Binding("ctrl+q", "quit", "退出"),
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.edition = "release"
+        self.target_os = ["windows"]
+        self.features = {}
+
+    def on_mount(self):
+        self.push_screen(EditionScreen())
+
+
+def check_deps():
+    """Check and install dependencies before launching TUI."""
+    missing = []
+    try:
+        import textual
+    except ImportError:
+        missing.append("textual")
+
+    if missing:
+        print("缺少依赖: " + ", ".join(missing))
+        for pkg in missing:
+            ans = input(f"是否安装 {pkg}? [Y/n]: ").strip().lower()
+            if ans in ("", "y", "yes"):
+                print(f"正在安装 {pkg}...")
+                subprocess.run([sys.executable, "-m", "pip", "install", pkg], check=True)
+            else:
+                print(f"需要 {pkg} 才能运行。已取消。")
+                sys.exit(1)
+
+
+if __name__ == "__main__":
+    check_deps()
+    app = ReleaseApp()
+    app.run()

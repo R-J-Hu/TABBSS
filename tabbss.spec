@@ -1,0 +1,81 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""
+PyInstaller spec for TABBSS — 档案库报站模拟器
+
+Usage:
+    pyinstaller tabbss.spec              # 默认打包
+    pyinstaller --distpath ./dist tabbss.spec  # 指定输出目录
+
+On Windows this produces a single TABBSS.exe (--onefile + --windowed).
+On macOS it produces TABBSS.app.
+"""
+
+import sys
+from pathlib import Path
+
+# ── 需要打包的数据文件 ──────────────────────────────────────────
+_here = Path('.').resolve()
+
+datas = [
+    ('web', 'web'),
+    ('scripts', 'scripts'),
+    ('VERSION', '.'),
+    ('port.txt', '.'),
+    ('web/funct.json', 'web'),
+    ('LICENSE', '.'),
+]
+
+# ⚠️ 数据目录（报站线路文件库/、兼容模式-海峡报站器文件库/）不打包进 .exe
+# 它们放在 .exe 同级目录，由安装程序附带或用户自行放置。
+# main.py 通过 _APP_DIR (sys.executable.parent) 自动定位。
+
+# ── 隐藏导入（PyInstaller 可能检测不到的模块）──────────────────
+hiddenimports = [
+    'local_server',       # 在 main.py 中动态 import
+    'http.server',        # local_server 使用
+    'json',
+    'pathlib',
+    'zipfile',
+    'argparse',
+    'posixpath',
+    'urllib.parse',
+]
+
+# ── Analysis ───────────────────────────────────────────────────
+a = Analysis(
+    ['main.py'],
+    pathex=[],
+    binaries=[],
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+)
+
+# ── 单文件打包 ─────────────────────────────────────────────────
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='TABBSS',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,          # --windowed: 不弹出控制台窗口
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon='icon/TABBSS.ico',              # Windows .exe / macOS .app icon
+)

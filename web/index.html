@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>档案库报站器 内测版</title>
+  <link rel="stylesheet" href="./style.css?v=20260731" />
+  <link rel="stylesheet" href="./editor.css?v=20260731" />
+</head>
+<body>
+  <main class="app" id="appRoot">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <img id="logoImage" src="" alt="交通档案库" style="height:64px;display:block;opacity:0.9">
+      <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" style="display:inline-flex;align-items:center;gap:8px;background:#FF6699;color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0">
+        <img id="bilibiliIcon" src="" alt="" style="width:20px;height:20px">
+        <span>交通档案库 Bilibili主页</span>
+      </a>
+    </div>
+    <h1>档案库报站模拟器 <span class="ver">V1.6</span></h1>
+    <p class="hint">预报可连按跳站；到站可重播当前站到站。<strong>预报重播</strong>会重播当前站预报并切换为前往该站状态。快捷键：1–9、0 服务语，F7 换向，F8 停止，F9 到站，F10 预报，F11 预报重播。</p>
+    <p id="editionWarning" style="color:#dc2626;font-weight:700;font-size:14px;margin:0 0 10px"></p>
+    <span class="build-badge" id="buildBadge">Build 216 2026-07-31 00:10:00</span>
+    <div class="update-banner" id="updateBanner" style="display:none">
+      <span class="update-banner-text" id="updateBannerText"></span>
+      <button class="update-banner-btn" id="updateBannerBtn">下载更新</button>
+      <button class="update-banner-close" id="updateBannerClose">&times;</button>
+    </div>
+    <p class="version-tag" id="buildTag">版本信息：V1.6 — 新增可视化线路编辑器（三层架构：公司→线路→编辑）、规则编辑器组件、全局模版/各站规则/手按提示语编辑、模板创建/复制线路、校验系统（线路错误+音频警告分类）、媒体文件夹管理（排序/上传/删除）、高级文本编辑器语法高亮、线路重命名自动更新、车站/线路/公司拖拽排序。修复导入导出功能：zip中文文件名UTF-8编码、隐式站名语音文件收集（{本站}旧格式兼容）、导入公司路径重映射、冲突检测路径比较、导入后索引刷新、Content-Disposition中文编码。（Build 195 2026-06-01）
+（Build 196 2026-06-04）修复公司级导入导出：导入详细错误日志、L0导入提示输入新公司名、导出文件缺失日志
+（Build 197 2026-06-13）导出容错：index.json中缺失的文件跳过而非中断整个导出；L0导入改为选公司弹窗
+（Build 198 2026-06-14）媒体文件夹增强：在系统打开、拖拽上传、复制/移动、多选批量操作、L2快捷入口；Logo加密加载；文档重组至insider_resource
+（Build 199 2026-06-22）外围程序管理体系全面搭建：应用架构改造为一体化桌面应用（pywebview+PyInstaller，单窗口免cmd）；发行版系统（editions/中性/内部/预载三种版本+pack.py重写）；Windows安装程序（NSIS模板+build_release.py统一构建）；更新机制（updater.py+API端点+前端更新横幅）；Git/GitHub基础设施（.gitignore+Workflows+PR/Issue模板）
+（Build 200 2026-06-27）UAT Bug修复：L0拖拽排序持久化、L1重命名排序保留、L2车站拖拽与文本框选择分离、Player上行末站音频方向修正、线路图滚动跳跃修复；Logo更新+粉色Bilibili按钮+内测版警告
+（Build 201 2026-06-27）站序编辑联动修复：识别站点覆盖时清空旧特殊规则并对齐英文数组；L0公司卡片点击范围扩大至整卡；线路图空站返回时恢复平滑滚动
+（Build 202 2026-06-27）编辑体验优化：各站规则指示灯实时更新；编辑当前线路显示名修复；新增"切换到当前正在编辑的线路"按钮；开发者功能面板（funct.json 开关控制）
+（Build 203 2026-07-20）三版本发行系统：funct.json新增edition字段（release/dev/audit）及_labels中文映射；前端警示文本根据edition动态显示/隐藏；Dev/Audit版强制关闭更新检查；Release版隐藏开发者入口（Alt+F12快捷键可开启，localStorage持久化）
+（Build 204 2026-07-20）Release打包媒体文件完整性修复+海峡兼容模式修复：公司级音频文件全量打包（不再仅INI引用文件）、output/index.json预生成（海峡兼容模式可独立运行）、local_server translate_path增加output目录路由
+（Build 205 2026-07-22）TUI load_persistence JSON解析修复+全选/全不选范围修复+NSIS空目录/nonfatal+全局JS错误处理器（Release版弹窗显示JS错误）+editor-ui空值检查
+（Build 206 2026-07-22）editor-ui renderL0空列表提前return导致按钮无响应修复
+（Build 207 2026-07-22）main.py启动前端口占用检测：netstat扫描→taskkill杀旧进程，防止多版本端口冲突导致加载旧版本
+（Build 208 2026-07-27）修复Player到站/跳站后本站英文及下站英文定位错站问题：toAudioEntries中【本站英文】【下站英文】改用ctx显式索引字段，不再依赖state.awaitingArrival
+（Build 209 2026-07-27）修复终点站预报重放：本站中文/英文错匹配上一站问题（runReplay未处理terminal case，ben_zhan_index指向N-1而非N）
+（Build 210 2026-07-27）修复终点站到站时xia_zhan_index越界：Math.min(N+1, n)与中文xia_zhan fallback行为对齐
+（Build 211 2026-07-28）Editor UI增强：媒体文件夹drop zone支持点击上传+删除上传按钮+在系统中打开右移、表头批量栏sticky固定；L0导入线路文件改名+海峡兼容导入链接及信息框；L0公司卡片目录修改时间完善；导入新建公司默认值=TABL文件名
+（Build 212 2026-07-28）.tabl文件关联：安装后.tabl后缀关联档案库报站器；双击.tabl文件自动打开app并跳转editor导入页面；tabl_icon.png→.ico注册为文件类型图标
+（Build 213 2026-07-29）.tabl双击修复：运行时双击不再重启app而是通知已有实例进入导入流程；前端每2秒轮询pending import；subprocess调用加CREATE_NO_WINDOW消除启动黑框
+（Build 214 2026-07-29）.tabl双击导入链路修复：_guess_zip_company未定义导致GET端点崩溃→改用内联逻辑；POST路由被do_POST guard拦截→加白名单；_do_import_zip双重响应→清理前置；netstat端口检测→socket connect_ex</p>
+
+    <section class="panel line-display-panel">
+      <div class="line-external" id="lineExternalDisplay" aria-live="polite">—</div>
+    </section>
+
+    <section class="panel">
+      <label>模式
+        <select id="modeSelect">
+          <option value="new">档案库新架构</option>
+          <option value="compat">海峡兼容模式</option>
+        </select>
+      </label>
+      <label id="companyRouteWrap">公司
+        <select id="companyRouteSelect"></select>
+      </label>
+      <label>线路
+        <select id="routeSelect"></select>
+      </label>
+      <label>方向
+        <select id="directionSelect">
+          <option value="up">上行</option>
+          <option value="down">下行</option>
+        </select>
+      </label>
+      <button type="button" id="flipDirBtn">切换上下行 <span class="kbd">F7</span></button>
+      <label>跳站（到站态）
+        <select id="stationJumpSelect"></select>
+      </label>
+      <span class="status-line">站序 <strong id="stopNumberDisplay">1</strong> / <span id="stopTotalDisplay">0</span></span>
+      <span class="status-line" id="phaseDisplay">到达第一站</span>
+      <button id="reloadBtn">重新加载线路索引</button>
+      <button id="switchToEditorLineBtn" style="display:none">切换到当前正在编辑的线路</button>
+    </section>
+
+    <section class="panel route-map-panel">
+      <h2>线路图</h2>
+      <div class="route-map-scroll" id="routeMapScroll">
+        <div id="routeMap"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="btns">
+        <button id="preBtn">预报 <span class="kbd">F10</span></button>
+        <button id="arriveBtn" class="btn-gap">到站 <span class="kbd">F9</span></button>
+        <button type="button" id="replayBtn" class="btn-gap">预报重播 <span class="kbd">F11</span></button>
+        <button type="button" id="stopPlayBtn">停止播放 <span class="kbd">F8</span></button>
+      </div>
+      <p class="hint small">回本方向终点站且已「到达」后按预报，将自动切换另一方向并从新方向第一站始发展开预报。</p>
+      <div class="btns" id="tipButtons"></div>
+    </section>
+
+    <section class="panel">
+      <h2>播放队列</h2>
+      <ol id="queueView"></ol>
+    </section>
+
+    <section class="panel debug-panel" id="debugPanel">
+      <h2>Dev 调试信息</h2>
+      <pre id="debugView"></pre>
+    </section>
+  </main>
+
+  <button id="editorToggle" class="editor-toggle" type="button" style="top:96px;">线路文件面板</button>
+  <button id="lineEditorToggle" class="editor-toggle" type="button" style="top:140px;">线路编辑器</button>
+  <button id="devPanelToggle" type="button" style="position:fixed;right:0;top:56px;z-index:30;border-radius:10px 0 0 10px;background:#2563eb;color:#fff;border:1px solid #3b82f6;border-right:none;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer">开发者功能</button>
+  <aside id="devPanelSidebar" style="position:fixed;top:0;right:0;width:340px;height:100vh;z-index:40;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,0.12);transform:translateX(100%);transition:transform 0.24s ease;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #e5e7eb">
+      <h2 style="margin:0;font-size:16px;color:#111827">开发者功能</h2>
+      <button type="button" id="devPanelClose" style="background:none;border:none;font-size:24px;color:#9ca3af;cursor:pointer;line-height:1">&times;</button>
+    </div>
+    <div id="devPanelBody" style="padding:16px"></div>
+    <div style="padding:12px 16px;border-top:1px solid #e5e7eb">
+      <button id="devPanelSave" class="ed-btn ed-btn-primary">保存</button>
+    </div>
+  </aside>
+  <aside class="editor-dock" id="fileSidebar">
+    <div class="dock-head">
+      <h2>线路文件编辑</h2>
+      <button type="button" id="editorCloseBtn" class="dock-close">×</button>
+    </div>
+    <div class="sidebar-actions">
+      <button type="button" id="openFileBtn">打开当前线路文件</button>
+      <button type="button" id="saveFileBtn">保存到本地</button>
+    </div>
+    <div class="sidebar-actions">
+      <button type="button" id="newFileBtn">新增线路文件</button>
+      <button type="button" id="renameFileBtn">重命名文件</button>
+      <button type="button" id="deleteFileBtn">删除文件</button>
+      <button type="button" id="restoreFileBtn">恢复最近删除</button>
+    </div>
+    <pre id="lineFileEditor" class="line-file-editor" contenteditable="true" spellcheck="false"></pre>
+  </aside>
+
+  <aside class="editor-dock line-editor-dock" id="lineEditorSidebar">
+    <div class="dock-head ed-header">
+      <div class="ed-breadcrumb" id="edBreadcrumb"></div>
+      <button type="button" id="lineEditorCloseBtn" class="dock-close">x</button>
+    </div>
+    <div class="ed-page-container" id="edPageContainer">
+      <!-- L0: Company List -->
+      <div class="ed-page" data-page="L0" id="edL0Page">
+        <div class="ed-search-row"><input id="edL0Search" class="ed-search-input" placeholder="搜索公司..." /></div>
+        <div class="ed-current-line" id="edL0CurrentLine"></div>
+        <div class="ed-list" id="edCompanyList"></div>
+        <div class="ed-page-actions">
+          <button id="edAddCompanyBtn" class="ed-btn">+ 添加公司</button>
+          <button id="edL0ImportBtn" class="ed-btn ed-btn-ghost">导入线路文件</button>
+          <a id="edL0HaixiaLink" class="ed-haixia-link">导入海峡报站器线路（兼容模式）</a>
+        </div>
+      </div>
+      <!-- L1: Line List -->
+      <div class="ed-page" data-page="L1" id="edL1Page">
+        <div class="ed-search-row"><input id="edL1Search" class="ed-search-input" placeholder="搜索线路..." /></div>
+        <div class="ed-current-line" id="edL1CurrentLine"></div>
+        <div class="ed-list" id="edLineList"></div>
+        <div class="ed-page-actions">
+          <div class="ed-dropdown" id="edAddLineDropdown">
+            <button id="edAddLineBtn" class="ed-btn">+ 添加线路 v</button>
+            <div class="ed-dropdown-menu" id="edAddLineMenu">
+              <button data-action="blank">从空白创建</button>
+              <button data-action="template">以现有线路为模版创建</button>
+              <button data-action="copy">复制现有线路</button>
+            </div>
+          </div>
+          <button id="edMediaFolderBtn" class="ed-btn ed-btn-ghost">打开媒体文件夹</button>
+          <button id="edImportBtn" class="ed-btn ed-btn-ghost">导入线路文件</button>
+        </div>
+      </div>
+      <!-- L2: Line Editor -->
+      <div class="ed-page" data-page="L2" id="edL2Page">
+        <div class="ed-l2-nav" id="edL2Nav"></div>
+        <div class="ed-l2-content" id="edL2Content"></div>
+        <div class="ed-page-actions ed-l2-footer">
+          <a href="#" class="ed-link" id="edRestoreLink">恢复现有内容</a>
+          <button id="edCancelBtn" class="ed-btn ed-btn-ghost">取消</button>
+          <button id="edValidateBtn" class="ed-btn ed-btn-ghost">校验</button>
+          <button id="edSaveBtn" class="ed-btn ed-btn-primary">保存</button>
+        </div>
+      </div>
+      <!-- L2-text: Advanced text editor -->
+      <div class="ed-page" data-page="L2-text" id="edL2TextPage">
+        <pre id="edTextEditor" class="line-file-editor" contenteditable="true" spellcheck="false"></pre>
+        <div class="ed-page-actions">
+          <a href="#" class="ed-link" id="edTextRestoreLink">恢复当前状态</a>
+          <button id="edTextSaveBtn" class="ed-btn ed-btn-primary">保存编辑</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script src="./editor-core.js?v=20260731"></script>
+  <script src="./editor-components.js?v=20260731"></script>
+  <script src="./main.js?v=20260731"></script>
+  <script src="./editor-ui.js?v=20260731"></script>
+</body>
+</html>
