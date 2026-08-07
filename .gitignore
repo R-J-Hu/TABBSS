@@ -48,8 +48,11 @@ release_devfunct.spec
 AGENTS.md
 CLAUDE.md
 
-# ── 推送脚本（含令牌，绝不公开）───────────────────────
+# ── 推送/上传脚本（含令牌，不公开）──────────────────
 _push_remotes.bat
+_upload_release.py
+_upload_release.bat
+_release_notes.md
 
 # ── 含线路名称的转换脚本 ──────────────────────────────
 scripts/convert_to_default_template.py
