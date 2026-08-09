@@ -77,5 +77,31 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon/TABBSS.ico',              # Windows .exe / macOS .app icon
+    icon='icon/TABBSS.ico',              # Windows .exe icon
 )
+
+# ── macOS .app Bundle ───────────────────────────────────────────
+# Only built when running PyInstaller on macOS.
+# Uses .icns icon if available, falls back to .ico (PyInstaller converts on macOS).
+import sys as _sys
+if _sys.platform == 'darwin':
+    _icon_path = 'icon/TABBSS.icns'
+    if not Path(_icon_path).exists():
+        # Fallback: PyInstaller on macOS can read .ico for BUNDLE too
+        _icon_path = 'icon/TABBSS.ico'
+
+    app = BUNDLE(
+        exe,
+        name='TABBSS.app',  # replaced at build time for edition variants
+        icon=_icon_path,
+        bundle_identifier='com.tabbss.archive-simulator',
+        info_plist={
+            'CFBundleName': '档案库报站模拟器',
+            'CFBundleDisplayName': '档案库报站模拟器',
+            'CFBundleShortVersionString': '1.6.0',
+            'CFBundleVersion': '1.6.0',
+            'NSHighResolutionCapable': True,
+            'NSRequiresAquaSystemAppearance': False,
+            'LSMinimumSystemVersion': '10.15',
+        },
+    )

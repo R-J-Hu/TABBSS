@@ -238,7 +238,7 @@
 
     try {
       var companies = [];
-      if (LE.mainState && LE.mainState.newIndex && LE.mainState.newIndex.companies) {
+      if (LE.mainState && LE.mainState.newIndex && LE.mainState.newIndex.companies && LE.mainState.newIndex.companies.length) {
         companies = LE.mainState.newIndex.companies;
         // Fetch actual directory mtime for each company
         try {
@@ -611,7 +611,7 @@
       var html = "";
       for (var i = 0; i < lines.length; i++) {
         var l = lines[i];
-        var name = l.name || l.file.replace(/\.ini$/i, "").split("/").pop();
+        var name = l.file.replace(/\.ini$/i, "").split("/").pop();
         // Quick scan for status
         var status = "ok";
         var statusTitle = "线路完整";
@@ -2157,6 +2157,52 @@
     return "留空表示无默认音频";
   }
 
+  /* ── Station Default Template Resolution ── */
+  function getStationDefaultTemplate(model, dir, stopIdx, field) {
+    var tpl = model.templates;
+    if (!tpl) return [];
+    var prefix = dir === "up" ? "up" : "down";
+    var stops = dir === "up" ? model.upStationsCn : model.downStationsCn;
+    var n = stops.length;
+    if (field === "depart") {
+      if (stopIdx === 2 && tpl[prefix + "FirstDepart"] && tpl[prefix + "FirstDepart"].length) return tpl[prefix + "FirstDepart"];
+      if (stopIdx === n && tpl[prefix + "TerminalDepart"] && tpl[prefix + "TerminalDepart"].length) return tpl[prefix + "TerminalDepart"];
+      return tpl[prefix + "Depart"] || [];
+    }
+    if (field === "arrive") {
+      if (stopIdx === n && tpl[prefix + "TerminalArrive"] && tpl[prefix + "TerminalArrive"].length) return tpl[prefix + "TerminalArrive"];
+      return tpl[prefix + "Arrive"] || [];
+    }
+    if (field === "zhAudioRel") {
+      return ["【本站中文文件】"];
+    }
+    if (field === "enAudioRel") {
+      return ["【本站英文文件】"];
+    }
+    return [];
+  }
+
+  function getStationContext(model, dir, stopIdx, field) {
+    var stopsCn = dir === "up" ? model.upStationsCn : model.downStationsCn;
+    var stopsEn = dir === "up" ? model.upStationsEn : model.downStationsEn;
+    var idx0 = stopIdx - 1;
+    // For forecast rules: 本站=departure station (prev), 下站=heading destination (current)
+    // For arrival rules: 本站=current station, 下站=next station
+    var isDepart = (field === "depart");
+    var benIdx = isDepart ? Math.max(0, idx0 - 1) : idx0;
+    var xiaIdx = isDepart ? idx0 : (stopIdx < stopsCn.length ? idx0 + 1 : idx0);
+    return {
+      benZhanName: stopsCn[benIdx] || "",
+      xiaZhanName: stopsCn[xiaIdx] || "",
+      startName: stopsCn[0] || "",
+      endName: stopsCn[stopsCn.length - 1] || "",
+      startEnName: (stopsEn && stopsEn[0]) ? stopsEn[0] : "",
+      endEnName: (stopsEn && stopsEn[stopsEn.length - 1]) ? stopsEn[stopsEn.length - 1] : "",
+      benZhanEnName: (stopsEn && stopsEn[benIdx]) ? stopsEn[benIdx] : "",
+      xiaZhanEnName: (stopsEn && xiaIdx < stopsEn.length && stopsEn[xiaIdx]) ? stopsEn[xiaIdx] : "",
+    };
+  }
+
   /* ── L2: Per-Station Rules Sub-Page ── */
   LE.renderL2StationRules = function (container) {
     var m = LE.state.editModel;
@@ -2236,12 +2282,18 @@
           if (key === "zhAudioRel" || key === "enAudioRel") {
             tokens = typeof tokens === "string" ? LE.parseRuleTokens(tokens) : (Array.isArray(tokens) ? tokens : []);
           }
+          var stationCtx = getStationContext(m, dir, i, key);
+          var defaultTpl = getStationDefaultTemplate(m, dir, i, key);
+          var ovLabel = (key === "zhAudioRel" || key === "enAudioRel") ? "默认" : null;
           var editor = LE.createRuleEditor({
             tokens: tokens,
             context: "global_template",
             subContext: subContext,
             companyRelPath: company,
             placeholder: key === "depart" || key === "arrive" ? "留空表示引用{默认模版}" : "留空表示使用同名文件自动匹配",
+            defaultTokens: defaultTpl.length ? defaultTpl : null,
+            stationContext: stationCtx,
+            overlayLabel: ovLabel,
             onChange: function (newTokens) {
               if (key === "zhAudioRel" || key === "enAudioRel") {
                 ov[key] = LE.serializeTokens(newTokens);

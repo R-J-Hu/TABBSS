@@ -422,34 +422,110 @@ def main():
     (build_dir / "VERSION").write_text(ver, encoding="utf-8")
 
     # Step 4: PyInstaller
-    log("Step 4/5: PyInstaller (may take several minutes)...")
+    total_steps = 5
+    if "macos" in target_os:
+        total_steps += 1  # Extra step for DMG
+
+    log(f"Step 4/{total_steps}: PyInstaller (may take several minutes)...")
     spec_src = (ROOT / "tabbss.spec").read_text(encoding="utf-8")
     spec_src = spec_src.replace("name='TABBSS'", f"name='{exe_name}'")
+    # Also replace BUNDLE name for macOS edition variants
+    spec_src = spec_src.replace("name='TABBSS.app'", f"name='{exe_name}.app'")
     spec_tmp = build_dir / "tabbss.spec"
     spec_tmp.write_text(spec_src, encoding="utf-8")
     main_content = (ROOT / "main.py").read_text(encoding="utf-8")
     (build_dir / "main.py").write_text(main_content, encoding="utf-8")
 
-    result = subprocess.run(
-        [sys.executable, "-m", "PyInstaller", str(spec_tmp), "--noconfirm",
-         "--distpath", str(SETUP_OUT), "--workpath", str(build_dir / "pyi_work")],
-        cwd=str(build_dir), capture_output=True)
+    pyi_args = [sys.executable, "-m", "PyInstaller", str(spec_tmp), "--noconfirm",
+                "--distpath", str(SETUP_OUT), "--workpath", str(build_dir / "pyi_work")]
+    result = subprocess.run(pyi_args, cwd=str(build_dir), capture_output=True)
     if result.returncode != 0:
         log(f"ERROR: PyInstaller failed")
         log(result.stderr.decode("utf-8", errors="replace")[-500:])
+        log(result.stdout.decode("utf-8", errors="replace")[-500:])
         sys.exit(1)
     log(f"OK: {exe_name}.exe")
 
-    # Step 5: NSIS
+    # Step 5: Platform-specific packaging
+    step = 5
+    base_ver = ver.split("-")[0]
+
     if "windows" in target_os:
-        log("Step 5/5: Building NSIS installer...")
+        log(f"Step {step}/{total_steps}: Building NSIS installer...")
         build_nsis(edition, exe_name, ver, build_no, build_dir)
+        step += 1
+
+    if "macos" in target_os:
+        log(f"Step {step}/{total_steps}: macOS packaging...")
+
+        if sys.platform != "darwin":
+            log("")
+            log("⚠️  WARNING: Cannot build macOS package from Windows!")
+            log("    PyInstaller does NOT support cross-compilation.")
+            log("    To build for macOS, run this script on a Mac with:")
+            log(f"      python scripts/build_release.py --edition {edition} --os macos")
+            log("    The .app bundle and .dmg will only be produced on macOS.")
+            log("")
+        else:
+            # Locate .app bundle from PyInstaller output
+            app_path = SETUP_OUT / f"{exe_name}.app"
+            if not app_path.exists():
+                log(f"ERROR: .app bundle not found at {app_path}")
+                log("PyInstaller BUNDLE step may have failed. Check PyInstaller output above.")
+                sys.exit(1)
+            log(f"OK: {app_path}")
+
+            # Create DMG
+            app_names = {"release": "档案库报站模拟器", "dev": "档案库报站模拟器Dev", "audit": "档案库报站模拟器Audit"}
+            dmg_name = f"{app_names[edition]}V{base_ver}-Build{build_no}.dmg"
+            dmg_path = SETUP_OUT / dmg_name
+            volname = app_names[edition]
+
+            # Remove existing DMG if any
+            if dmg_path.exists():
+                dmg_path.unlink()
+
+            log(f"Creating DMG: {dmg_name}...")
+            hdiutil_result = subprocess.run(
+                ["hdiutil", "create", "-volname", volname,
+                 "-srcfolder", str(app_path), "-ov", "-format", "UDZO",
+                 str(dmg_path)],
+                capture_output=True, text=True)
+            if hdiutil_result.returncode != 0:
+                log(f"WARNING: hdiutil create failed")
+                log(hdiutil_result.stderr[-500:])
+                # Attempt fallback: just zip the .app
+                import zipfile as _zf
+                zip_path = SETUP_OUT / f"{app_names[edition]}V{base_ver}-Build{build_no}.app.zip"
+                log(f"Falling back to .app.zip: {zip_path.name}...")
+                with _zf.ZipFile(zip_path, 'w', _zf.ZIP_DEFLATED) as zf:
+                    for root, dirs, files in os.walk(app_path):
+                        for f in sorted(files):
+                            fp = Path(root) / f
+                            arcname = str(fp.relative_to(SETUP_OUT))
+                            # Preserve macOS resource forks + symlinks
+                            zi = _zf.ZipInfo(arcname)
+                            zi.compress_type = _zf.ZIP_DEFLATED
+                            try:
+                                zf.writestr(zi, fp.read_bytes())
+                            except (IsADirectoryError, OSError):
+                                pass
+                log(f"OK: {zip_path.name}")
+            else:
+                log(f"OK: {dmg_name}")
+            step += 1
 
     header("BUILD COMPLETE")
     log(f"Output: {SETUP_OUT}")
-    for f in sorted(SETUP_OUT.glob("*.exe")):
-        size_mb = f.stat().st_size / (1024 * 1024)
-        log(f"  {f.name} ({size_mb:.1f} MB)")
+    for f in sorted(SETUP_OUT.glob("*")):
+        if f.is_file() and f.suffix.lower() in (".exe", ".dmg", ".zip"):
+            size_mb = f.stat().st_size / (1024 * 1024)
+            log(f"  {f.name} ({size_mb:.1f} MB)")
+    if not any(f for f in sorted(SETUP_OUT.glob("*")) if f.is_file() and f.suffix.lower() in (".exe", ".dmg", ".zip")):
+        # Fallback: list all exe files
+        for f in sorted(SETUP_OUT.glob("*.exe")):
+            size_mb = f.stat().st_size / (1024 * 1024)
+            log(f"  {f.name} ({size_mb:.1f} MB)")
 
 
 if __name__ == "__main__":

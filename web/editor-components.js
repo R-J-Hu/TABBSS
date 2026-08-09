@@ -5,11 +5,12 @@
   console.log("[editor-components] Initializing...");
 
   var PARAM_DEFS = [
-    { key: "【默认模版】", label: "默认模版", color: "#78716c" },
+    { key: "【本站中文文件】", label: "本站中文文件", color: "#22c55e" },
+    { key: "【本站英文文件】", label: "本站英文文件", color: "#4ade80" },
     { key: "【本站中文】", label: "本站中文", color: "#22c55e" },
     { key: "【本站英文】", label: "本站英文", color: "#4ade80" },
     { key: "【下站中文】", label: "下站中文", color: "#f97316" },
-    { key: "【下站英文】", label: "下站英文", color: "#3b82f6" },
+    { key: "【下站英文】", label: "下站英文", color: "#eab308" },
     { key: "【起始站中文】", label: "起始站中文", color: "#a855f7" },
     { key: "【起始站英文】", label: "起始站英文", color: "#c084fc" },
     { key: "【终点站中文】", label: "终点站中文", color: "#06b6d4" },
@@ -23,12 +24,12 @@
     "global_template": [],
     "station_depart": ["【普通站预报模板】", "【普通站到站模板】"],
     "station_arrive": ["【普通站预报模板】", "【普通站到站模板】"],
-    "station_zh_audio": ["【默认模版】", "【本站中文】", "【普通站预报模板】", "【普通站到站模板】"],
-    "station_en_audio": ["【默认模版】", "【本站英文】", "【普通站预报模板】", "【普通站到站模板】"],
-    "terminal_depart": ["【默认模版】", "【下站中文】", "【下站英文】", "【普通站到站模板】"],
-    "terminal_arrive": ["【默认模版】", "【下站中文】", "【下站英文】", "【普通站预报模板】"],
-    "first_depart": ["【默认模版】", "【普通站到站模板】"],
-    "tip": ["【默认模版】", "【普通站预报模板】", "【普通站到站模板】"],
+    "station_zh_audio": ["【普通站预报模板】", "【普通站到站模板】"],
+    "station_en_audio": ["【普通站预报模板】", "【普通站到站模板】"],
+    "terminal_depart": ["【下站中文】", "【下站英文】", "【普通站到站模板】"],
+    "terminal_arrive": ["【下站中文】", "【下站英文】", "【普通站预报模板】"],
+    "first_depart": ["【普通站到站模板】"],
+    "tip": ["【普通站预报模板】", "【普通站到站模板】"],
   };
 
   function paramDef(k) { return PARAM_DEFS.find(function (p) { return p.key === k; }); }
@@ -42,6 +43,9 @@
     var placeholder = config.placeholder || "";
     var companyRelPath = config.companyRelPath || "";
     var onChange = config.onChange || function () {};
+    var defaultTokens = config.defaultTokens || null;
+    var stationContext = config.stationContext || {};
+    var overlayLabel = config.overlayLabel || null; // custom overlay text; null = "默认规则"
 
     // Merge disabled params: context (e.g. global_template) + subContext (e.g. first_depart)
     var baseDisabled = CONTEXT_DISABLED[context] || [];
@@ -55,6 +59,21 @@
 
     var editingIdx = -1;
     var audioPopup = null;
+    var overlayBroken = false;    // true after user clicks overlay to reveal/edit
+    var overlayEl = null;         // reference to current overlay DOM element
+    var _usingDefaultTokens = false; // true when render() is showing expanded default tokens
+
+    function ensureDefaultTokens() {
+      // Copy default tokens into actual tokens without breaking overlay
+      if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === "【默认模版】")) {
+        tokens = defaultTokens.slice();
+      }
+    }
+    function breakOverlay() {
+      if (!_usingDefaultTokens) return;
+      ensureDefaultTokens();
+      overlayBroken = true;
+    }
 
     function fireChange() {
       var filtered = tokens.filter(function (t) { return t !== ""; });
@@ -69,17 +88,118 @@
       }
     }
 
+    /* ── Annotated label for default template display ── */
+    function getAnnotatedLabel(tok) {
+      var def = paramDef(tok);
+      if (!def) return tok; // file token: show as-is
+      var label = def.label;
+      // Append station name annotation
+      var ctx = stationContext;
+      if (tok === "【本站中文文件】") {
+        if (ctx.benZhanName) return "本站中文（" + ctx.benZhanName + ".*）";
+        return "本站中文（默认匹配）";
+      }
+      if (tok === "【本站英文文件】") {
+        var enName = ctx.benZhanEnName || "";
+        if (enName) return "本站英文（" + enName + ".*）";
+        return "本站英文（无）";
+      }
+      if (tok === "【本站中文】") {
+        if (ctx.benZhanName) return label + "（" + ctx.benZhanName + "站）";
+      }
+      if (tok === "【本站英文】" || tok === "【英文本站】") {
+        var en = ctx.benZhanEnName || ctx.benZhanName || "";
+        if (en) return label + "（" + en + "站）";
+      }
+      if (tok === "【下站中文】") {
+        if (ctx.xiaZhanName) return label + "（" + ctx.xiaZhanName + "站）";
+      }
+      if (tok === "【下站英文】" || tok === "【英文下站】") {
+        var enXia = ctx.xiaZhanEnName || ctx.xiaZhanName || "";
+        if (enXia) return label + "（" + enXia + "站）";
+      }
+      if (tok === "【起始站中文】") {
+        if (ctx.startName) return label + "（" + ctx.startName + "站）";
+      }
+      if (tok === "【起始站英文】") {
+        var enStart = ctx.startEnName || ctx.startName || "";
+        if (enStart) return label + "（" + enStart + "站）";
+      }
+      if (tok === "【终点站中文】") {
+        if (ctx.endName) return label + "（" + ctx.endName + "站）";
+      }
+      if (tok === "【终点站英文】") {
+        var enEnd = ctx.endEnName || ctx.endName || "";
+        if (enEnd) return label + "（" + enEnd + "站）";
+      }
+      return label;
+    }
+
     /* ── render ── */
     function render() {
+      var displayTokens = tokens.slice();
+      _usingDefaultTokens = false;
+      var defaultMaskStart = -1;
+      var defaultMaskEnd = -1;
+
+      if (defaultTokens && defaultTokens.length && !overlayBroken) {
+        if (tokens.length === 0) {
+          // Case 1: completely empty — show full default
+          displayTokens = defaultTokens.slice();
+          defaultMaskStart = 0;
+          defaultMaskEnd = displayTokens.length;
+        } else if (tokens.length === 1 && tokens[0] === "【默认模版】") {
+          // Case 2: only 【默认模版】 — expand it
+          displayTokens = defaultTokens.slice();
+          defaultMaskStart = 0;
+          defaultMaskEnd = displayTokens.length;
+        } else {
+          var dtIdx = tokens.indexOf("【默认模版】");
+          if (dtIdx >= 0) {
+            // Case 3: contains 【默认模版】 — expand in place
+            var expanded = [];
+            for (var ti = 0; ti < tokens.length; ti++) {
+              if (tokens[ti] === "【默认模版】") {
+                defaultMaskStart = expanded.length;
+                expanded = expanded.concat(defaultTokens);
+                defaultMaskEnd = expanded.length;
+              } else {
+                expanded.push(tokens[ti]);
+              }
+            }
+            displayTokens = expanded;
+          }
+        }
+        if (defaultMaskStart >= 0 && defaultMaskEnd > defaultMaskStart) {
+          _usingDefaultTokens = true;
+        }
+      }
+
       container.innerHTML = "";
 
-      // Leading gap before first tag
-      if (tokens.length > 0) {
+      // If showing default sequence, wrap everything in a container for badge positioning.
+      // The wrapper holds: leading gap + all default tags + inter gaps + end inserter.
+      // This ensures no separate flex children that could cause line wrapping in the outer container.
+      var defaultWrapper = null;
+      if (_usingDefaultTokens && defaultMaskStart >= 0) {
+        defaultWrapper = document.createElement("span");
+        defaultWrapper.className = "ed-default-wrapper";
+        defaultWrapper.style.position = "relative";
+        defaultWrapper.style.display = "inline-flex";
+        defaultWrapper.style.flexWrap = "wrap";
+        defaultWrapper.style.gap = "3px";
+        defaultWrapper.style.alignItems = "center";
+        container.appendChild(defaultWrapper);
+        // Badge via CSS ::before — always at top, full width, never covered by tags
+        defaultWrapper.setAttribute("data-badge-text", overlayLabel || "默认规则");
+      }
+
+      // If no default wrapper, leading gap goes directly in container
+      if (!defaultWrapper && displayTokens.length > 0) {
         var leadGap = document.createElement("span");
         leadGap.className = "re-gap";
         leadGap.addEventListener("click", function (e) {
           e.stopPropagation();
-          console.log("[rule-editor] lead gap click, editingIdx=" + editingIdx);
           if (editingIdx >= 0) commitEdit(editingIdx, null);
           tokens.splice(0, 0, "");
           editingIdx = 0;
@@ -91,14 +211,38 @@
         container.appendChild(leadGap);
       }
 
-      tokens.forEach(function (tok, i) {
+      // Leading gap inside wrapper (if using wrapper, prepend before first tag)
+      if (defaultWrapper && displayTokens.length > 0) {
+        var wLeadGap = document.createElement("span");
+        wLeadGap.className = "re-gap";
+        wLeadGap.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (editingIdx >= 0) commitEdit(editingIdx, null);
+          // Insert at defaultMaskStart (before the default sequence), not position 0
+          var insertPos = defaultMaskStart > 0 ? defaultMaskStart : 0;
+          if (_usingDefaultTokens) { ensureDefaultTokens(); }
+          tokens.splice(insertPos, 0, "");
+          editingIdx = insertPos;
+          render();
+          requestAnimationFrame(function () {
+            showPopup(container.querySelector('.re-tag[data-idx="' + insertPos + '"] input'), "");
+          });
+        });
+        defaultWrapper.appendChild(wLeadGap);
+      }
+
+      displayTokens.forEach(function (tok, i) {
         var isP = LE.isParamToken(tok);
         var def = isP ? paramDef(tok) : null;
-        var label = isP ? (def ? def.label : tok) : tok;
-        var inEdit = (editingIdx === i);
+        var isDefaultMasked = _usingDefaultTokens && i >= defaultMaskStart && i < defaultMaskEnd;
+        var label = isP ? (def ? (isDefaultMasked ? getAnnotatedLabel(tok) : def.label) : tok) : tok;
+        var inEdit = (editingIdx === i) && !isDefaultMasked;
+
+        // ALL tags go into wrapper when showing default, to keep single flex layout
+        var parentEl = (defaultWrapper) ? defaultWrapper : container;
 
         var tag = document.createElement("span");
-        tag.className = "re-tag" + (isP ? " re-tag-param" : " re-tag-file") + (inEdit ? " editing" : "");
+        tag.className = "re-tag" + (isP ? " re-tag-param" : " re-tag-file") + (inEdit ? " editing" : "") + (isDefaultMasked ? " re-tag-default-masked" : "");
         tag.dataset.idx = i;
         if (isP && def) tag.style.setProperty("--re-color", def.color);
 
@@ -132,18 +276,21 @@
           txt.textContent = label;
           tag.appendChild(txt);
 
-          var del = document.createElement("span");
-          del.className = "re-tag-del";
-          del.textContent = "×";
-          del.addEventListener("mousedown", function (e) {
-            e.preventDefault(); e.stopPropagation();
-            tokens.splice(i, 1);
-            editingIdx = -1; hidePopup(); render(); fireChange();
-          });
-          tag.appendChild(del);
+          if (!isDefaultMasked) {
+            var del = document.createElement("span");
+            del.className = "re-tag-del";
+            del.textContent = "×";
+            del.addEventListener("mousedown", function (e) {
+              e.preventDefault(); e.stopPropagation();
+              tokens.splice(i, 1);
+              editingIdx = -1; hidePopup(); render(); fireChange();
+            });
+            tag.appendChild(del);
+          }
 
           tag.addEventListener("click", function (e) {
             if (e.target.classList.contains("re-tag-del")) return;
+            if (isDefaultMasked) { breakOverlay(); }
             console.log("[rule-editor] tag click idx=" + i + ", editingIdx=" + editingIdx);
             if (editingIdx >= 0 && editingIdx !== i) commitEdit(editingIdx, null);
             if (editingIdx === i) return;
@@ -152,15 +299,18 @@
           });
         }
 
-        container.appendChild(tag);
+        parentEl.appendChild(tag);
 
         // Gap between tags
-        if (i < tokens.length - 1) {
+        if (i < displayTokens.length - 1) {
+          var nextIsMasked = _usingDefaultTokens && (i + 1) >= defaultMaskStart && (i + 1) < defaultMaskEnd;
+          var gapIsMasked = isDefaultMasked && nextIsMasked;
           var gap = document.createElement("span");
-          gap.className = "re-gap";
+          gap.className = "re-gap" + (gapIsMasked ? " re-gap-default-masked" : "");
           (function (pos) {
             gap.addEventListener("click", function (e) {
               e.stopPropagation();
+              if (gapIsMasked) { breakOverlay(); }
               console.log("[rule-editor] gap click pos=" + pos + ", editingIdx=" + editingIdx);
               if (editingIdx >= 0) commitEdit(editingIdx, null);
               tokens.splice(pos, 0, "");
@@ -171,11 +321,11 @@
               });
             });
           })(i + 1);
-          container.appendChild(gap);
+          parentEl.appendChild(gap);
         }
       });
 
-      // End inserter
+      // End inserter — append to last tag's parent so it stays inline
       var endIns = document.createElement("span");
       endIns.className = "re-end-inserter";
       endIns.textContent = "＋";
@@ -183,6 +333,7 @@
         e.stopPropagation();
         console.log("[rule-editor] end+ click, editingIdx=" + editingIdx + ", tokensLen=" + tokens.length);
         if (editingIdx >= 0) commitEdit(editingIdx, null);
+        if (_usingDefaultTokens) { ensureDefaultTokens(); }
         var pos = tokens.length;
         tokens.push("");
         editingIdx = pos;
@@ -192,10 +343,11 @@
           if (t) { var inp = t.querySelector("input"); if (inp) showPopup(inp, ""); }
         });
       });
-      container.appendChild(endIns);
+      // Appends after ALL tags — always into the wrapper if showing default
+      (defaultWrapper || container).appendChild(endIns);
 
-      // Placeholder when empty
-      if (!tokens.length) {
+      // Placeholder when empty and not showing default
+      if (!displayTokens.length) {
         var ph = document.createElement("span");
         ph.className = "re-placeholder";
         ph.textContent = placeholder || "点击＋添加...";
@@ -206,6 +358,7 @@
       container.addEventListener("click", function (e) {
         if (e.target === container && editingIdx >= 0) commitEdit(editingIdx, null);
       });
+
     }
 
     /* ── commit edit ── */
@@ -350,8 +503,46 @@
     }
 
     container.getTokens = function () { return tokens.filter(function (t) { return t !== ""; }); };
-    container.setTokens = function (tks) { tokens = (tks || []).slice(); editingIdx = -1; hidePopup(); render(); };
+    container.setTokens = function (tks) {
+      tokens = (tks || []).slice();
+      editingIdx = -1; hidePopup();
+      // Reset overlay state when tokens are set externally
+      if (defaultTokens && defaultTokens.length) {
+        var hasOnlyDefault = (tokens.length === 1 && tokens[0] === "【默认模版】");
+        if (tokens.length === 0 || hasOnlyDefault) {
+          overlayBroken = false;
+        }
+      }
+      render();
+    };
     container.setCompanyRelPath = function (p) { companyRelPath = p; };
+
+    // ── Blur → fold-back check ──
+    container.addEventListener("focusout", function () {
+      setTimeout(function () {
+        if (!container.contains(document.activeElement)) {
+          if (overlayBroken && defaultTokens && defaultTokens.length) {
+            // Check if current tokens contain the complete default sequence
+            var seq = LE.findSubsequence(tokens, defaultTokens);
+            if (seq.found) {
+              // Fold: replace the default subsequence
+              var before = tokens.slice(0, seq.start);
+              var after = tokens.slice(seq.end);
+              // For audio file fields (overlayLabel === "默认"), fold to empty (no 【默认模版】 concept)
+              if (overlayLabel === "默认") {
+                tokens = before.concat(after);
+              } else {
+                tokens = before.concat(["【默认模版】"]).concat(after);
+              }
+              overlayBroken = false;
+              editingIdx = -1;
+              render();
+              fireChange();
+            }
+          }
+        }
+      }, 150);
+    });
 
     render();
     return container;

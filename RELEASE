@@ -466,15 +466,21 @@ class FeatureScreen(Screen):
 class OSScreen(Screen):
     CSS = """
     OSScreen { align: center middle; }
-    #os-container { width: 45; height: auto; border: solid $primary; padding: 2 4; }
+    #os-container { width: 50; height: auto; border: solid $primary; padding: 2 4; }
     #os-title { text-align: center; text-style: bold; padding-bottom: 1; }
+    #os-warn { color: $warning; text-align: center; padding: 1 0; height: auto; }
     """
 
     def compose(self):
+        import sys as _sys
+        warn_text = ""
+        if _sys.platform != "darwin":
+            warn_text = "⚠ macOS 必须在 Mac 上构建，Windows 无法交叉编译。\n  如勾选 macOS，在 Windows 上将跳过，需在 Mac 上单独运行。"
         yield Container(
             Label("选择目标系统", id="os-title"),
             Checkbox("Windows (.exe + 安装包)", value=True, id="os-win"),
-            Checkbox("macOS (.app + DMG)", value=False, id="os-mac"),
+            Checkbox("macOS (.app + DMG) — 需在 Mac 上运行构建脚本", value=False, id="os-mac"),
+            Label(warn_text, id="os-warn") if warn_text else Static(""),
             Container(
                 Button("< 返回", id="os-back"),
                 Button("开始打包 >", variant="primary", id="os-build"),
@@ -509,12 +515,18 @@ class ConfirmScreen(Screen):
 
     def compose(self):
         edition_names = {"release": "发行版", "dev": "开发版", "audit": "外审版"}
+        import sys as _sys
+        has_macos = "macos" in self.app.target_os
+        mac_warn = ""
+        if has_macos and _sys.platform != "darwin":
+            mac_warn = "\n⚠ 已选 macOS 但当前在 Windows 上 — macOS 构建将跳过。\n  请将项目复制到 Mac 后运行:\n  python scripts/build_release.py --edition {0} --os macos".format(self.app.edition)
         yield Container(
             Label("确认打包信息", id="confirm-title"),
             Static(""),
             Static(f"版本: {edition_names.get(self.app.edition, '?')}"),
             Static(f"目标系统: {', '.join(self.app.target_os)}"),
             Static(f"输出目录: {SETUP_OUT}"),
+            Static(mac_warn) if mac_warn else Static(""),
             Static(""),
             Static("点击 [开始打包] 后，将保存配置并提示你在终端中执行构建命令。"),
             Static("这样可以避免长时间编译导致的界面卡顿。"),

@@ -97,6 +97,19 @@ window.LineEditor = (function () {
   LE.parseRuleTokens = parseRuleTokens;
   LE.serializeTokens = serializeTokens;
 
+  /** Find a continuous subsequence in a token array */
+  LE.findSubsequence = function (tokens, needle) {
+    if (!needle || !needle.length || !tokens) return { found: false, start: -1, end: -1 };
+    for (var i = 0; i <= tokens.length - needle.length; i++) {
+      var match = true;
+      for (var j = 0; j < needle.length; j++) {
+        if (tokens[i + j] !== needle[j]) { match = false; break; }
+      }
+      if (match) return { found: true, start: i, end: i + needle.length };
+    }
+    return { found: false, start: -1, end: -1 };
+  };
+
   /* ── Parse simple key=value from INI block ── */
   function parseKey(text, key) {
     var m = text.match(new RegExp("^" + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "=(.*)$", "m"));
