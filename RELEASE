@@ -570,8 +570,9 @@ class ConfirmScreen(Screen):
         if sys.platform == "win32":
             # Windows: new cmd window, stays open after completion
             bat = ROOT / "_build_run.bat"
-            bat.write_text(f'@echo off\ncd /d "{ROOT}"\n{cmd}\necho.\necho Build finished. Press any key to close.\npause >nul\n', encoding="utf-8")
-            subprocess.Popen(f'start "构建 - TABBSS" cmd /c "{bat}"', shell=True)
+            # bat 含中文路径必须 GBK 编码，UTF-8 会导致 cmd 乱码/找不到文件
+            bat.write_text(f'@echo off\ncd /d "{ROOT}"\n{cmd}\necho.\necho Build finished. Press any key to close.\npause >nul\n', encoding="gbk")
+            subprocess.Popen(f'start "TABBSS Build" cmd /c "{bat}"', shell=True)
         else:
             # macOS: new Terminal window
             subprocess.Popen(["open", "-a", "Terminal", script])
