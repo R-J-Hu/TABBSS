@@ -35,7 +35,15 @@ const stationJumpSelect = document.getElementById("stationJumpSelect");
 const stopNumberDisplay = document.getElementById("stopNumberDisplay");
 const stopTotalDisplay = document.getElementById("stopTotalDisplay");
 const phaseDisplay = document.getElementById("phaseDisplay");
+const phaseLabel = document.getElementById("phaseLabel");
 const lineExternalDisplay = document.getElementById("lineExternalDisplay");
+const currentStationDisplay = document.getElementById("currentStationDisplay");
+const currentStationEnDisplay = document.getElementById("currentStationEnDisplay");
+const routeDestinationEnDisplay = document.getElementById("routeDestinationEnDisplay");
+const nextActionHint = document.getElementById("nextActionHint");
+const volumeControl = document.getElementById("volumeControl");
+const volumeOutput = document.getElementById("volumeOutput");
+const queueStateDisplay = document.getElementById("queueStateDisplay");
 const routeMapScroll = document.getElementById("routeMapScroll");
 const routeMap = document.getElementById("routeMap");
 const queueView = document.getElementById("queueView");
@@ -46,6 +54,7 @@ const arriveBtn = document.getElementById("arriveBtn");
 const stopPlayBtn = document.getElementById("stopPlayBtn");
 const replayBtn = document.getElementById("replayBtn");
 const flipDirBtn = document.getElementById("flipDirBtn");
+const nextAnnounceBtn = document.getElementById("nextAnnounceBtn");
 
 const state = {
   mode: "new",
@@ -57,6 +66,7 @@ const state = {
   direction: "up",
   stopNumber: 1,
   awaitingArrival: false,
+  playbackVolume: 0.62,
   audioBases: ["../兼容模式-海峡报站器文件库"],
   outputBase: "../output",
   userDataBase: "../报站线路文件库",
@@ -647,6 +657,7 @@ function syncRouteOptionsByCompany() {
   lines.forEach((line) => {
     const op = document.createElement("option");
     op.value = line.file;
+    // 顶栏始终展示 index.json 定义的线路显示名；文件名仅作为加载值。
     op.textContent = line.name;
     routeSelect.appendChild(op);
   });
@@ -873,6 +884,13 @@ function stationAtOneBased(n, dir) {
   const stations = stationsForDirection(d);
   if (n < 1 || n > stations.length) return "";
   return stations[n - 1];
+}
+
+function stationEnAtOneBased(n, dir) {
+  const d = dir === undefined ? state.direction : dir;
+  const stations = state.route?.directions?.[d]?.stations_en || [];
+  if (n < 1 || n > stations.length) return "";
+  return stations[n - 1] || "";
 }
 
 function routeFolderName() {
@@ -1135,12 +1153,14 @@ function updateExternalDisplay() {
   if (!lineExternalDisplay) return;
   const stations = getStations();
   const term = stations.length ? stations[stations.length - 1] : "";
-  const raw = (state.route?.display && state.route.display.front_raw) || "";
-  let badge = "";
-  const m = raw.match(/\[([^\]]*[快LＬKkBRT\d][^\]]*)\]/);
-  if (m) badge = m[1].replace(/→.*$/, "").trim();
-  if (!badge) badge = (state.route?.name || "").slice(0, 16);
-  lineExternalDisplay.textContent = term ? `${badge} ➔ ${term}` : badge || "—";
+  const selectedRouteLabel = routeSelect?.options?.[routeSelect.selectedIndex]?.textContent || "";
+  const badge = state.mode === "new"
+    ? (state.route?.name || selectedRouteLabel.replace(/\.ini$/i, ""))
+    : (selectedRouteLabel || state.route?.name || "");
+  lineExternalDisplay.textContent = term ? `${badge} → ${term}` : badge || "—";
+  if (routeDestinationEnDisplay) {
+    routeDestinationEnDisplay.textContent = stations.length ? stationEnAtOneBased(stations.length) : "";
+  }
 }
 
 function stationOverrideFor(dir, stopIndex, kind) {
@@ -1401,51 +1421,59 @@ function renderTipButtons() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.tip = String(idx + 1);
+    btn.className = "tip-button";
     const name = (labels[idx] || "").trim() || `服务语${idx + 1}`;
-    btn.innerHTML = `${name} <span class="kbd">${keys[idx] || ""}</span>`;
+    btn.innerHTML = `<i>${keys[idx] || ""}</i><span>${name}</span>`;
     btn.addEventListener("click", () => playTipByIndex(idx + 1));
     tipButtons.appendChild(btn);
   });
 }
 
-function renderQueue(queue) {
+function renderQueue(queue, activeIndex = -1, completedThrough = -1) {
   queueView.innerHTML = "";
-  for (const item of queue) {
+  if (queueStateDisplay) {
+    queueStateDisplay.textContent = activeIndex >= 0
+      ? "正在播放"
+      : queue.length && completedThrough >= queue.length - 1
+        ? "播放完成"
+        : "就绪";
+  }
+  if (queue.length === 0) {
+    const placeholder = document.createElement("li");
+    placeholder.className = "queue-item queue-placeholder upcoming";
+    placeholder.innerHTML = '<i class="queue-icon">⌛</i><span class="queue-number">—</span><span class="queue-content">播放后的真实语音队列会显示在这里</span>';
+    queueView.appendChild(placeholder);
+    return;
+  }
+  queue.forEach((item, index) => {
     const li = document.createElement("li");
     li.className = "queue-item";
+    const isError = item.type === "missing" || item.type === "error";
+    if (isError) li.classList.add("error");
+    else if (index === activeIndex) li.classList.add("current");
+    else if (index <= completedThrough) li.classList.add("played");
+    else li.classList.add("upcoming");
+
+    const icon = document.createElement("i");
+    icon.className = "queue-icon";
+    icon.textContent = isError ? "✕" : index === activeIndex ? "▶" : index <= completedThrough ? "✓" : "⌛";
+    const number = document.createElement("span");
+    number.className = "queue-number";
+    number.textContent = String(index + 1);
+    const content = document.createElement("span");
+    content.className = "queue-content";
     if (item.type === "file") {
-      if (item.displayTag === "next") {
-        const tag = document.createElement("span");
-        tag.className = "queue-tag queue-tag-next";
-        tag.textContent = "下一站";
-        li.appendChild(tag);
-        li.appendChild(document.createTextNode(item.displayFile || basenameOf(item.value)));
-      } else if (item.displayTag === "here") {
-        const tag = document.createElement("span");
-        tag.className = "queue-tag queue-tag-here";
-        tag.textContent = "到站";
-        li.appendChild(tag);
-        li.appendChild(document.createTextNode(item.displayFile || basenameOf(item.value)));
-      } else {
-        li.appendChild(document.createTextNode(item.displayFile || item.label || item.value));
-      }
+      content.appendChild(document.createTextNode(item.displayFile || item.label || basenameOf(item.value)));
     } else if (item.type === "missing") {
-      const tag = document.createElement("span");
-      tag.className = "queue-tag queue-tag-miss";
-      tag.textContent = "文件缺失";
-      li.appendChild(tag);
-      li.appendChild(document.createTextNode(item.label || ""));
+      content.appendChild(document.createTextNode(`${item.label || ""}（文件不存在）`));
     } else if (item.type === "error") {
-      const tag = document.createElement("span");
-      tag.className = "queue-tag queue-tag-err";
-      tag.textContent = "文件错误";
-      li.appendChild(tag);
-      li.appendChild(document.createTextNode(item.label || item.displayFile || ""));
+      content.appendChild(document.createTextNode(`${item.label || item.displayFile || ""}（播放失败）`));
     } else {
-      li.textContent = String(item.label || "");
+      content.textContent = String(item.label || "");
     }
+    li.append(icon, number, content);
     queueView.appendChild(li);
-  }
+  });
 }
 
 async function markMissingFiles(queue) {
@@ -1513,7 +1541,9 @@ async function playQueue(queue, opts = {}) {
 
     const src = item.url || audioUrlForRelative(item.value);
     try {
+      renderQueue(normalizedQueue, i, i - 1);
       const audio = new Audio(src);
+      audio.volume = state.playbackVolume;
       currentAudioEl = audio;
       await new Promise((resolve, reject) => {
         const done = () => {
@@ -1533,15 +1563,17 @@ async function playQueue(queue, opts = {}) {
         };
         audio.play().catch(reject);
       });
-    } catch {
+      renderQueue(normalizedQueue, -1, i);
+      } catch {
       normalizedQueue[i] = {
         type: "error",
         label: item.displayFile || basenameOf(item.value) || item.value,
       };
-      renderQueue(normalizedQueue);
+        renderQueue(normalizedQueue, -1, i - 1);
       console.warn("音频播放失败:", src);
     }
   }
+  renderQueue(normalizedQueue, -1, normalizedQueue.length - 1);
 }
 
 function labelClassForIndex(i) {
@@ -1577,22 +1609,28 @@ function refreshTripUi(options = {}) {
   syncStationJumpOptions();
 
   if (n === 0) {
-    phaseDisplay.textContent = "无站点数据";
+    if (phaseLabel) phaseLabel.textContent = "无站点数据";
+    if (currentStationDisplay) currentStationDisplay.textContent = "—";
+    if (currentStationEnDisplay) currentStationEnDisplay.textContent = "";
     preBtn.disabled = true;
     arriveBtn.disabled = true;
+    if (nextAnnounceBtn) nextAnnounceBtn.disabled = true;
     routeMap.innerHTML = "";
     return;
   }
 
   preBtn.disabled = false;
   arriveBtn.disabled = state.stopNumber === 1 && !state.awaitingArrival;
+  if (nextAnnounceBtn) nextAnnounceBtn.disabled = false;
 
   const name = stationAtOneBased(state.stopNumber);
-  if (state.awaitingArrival) {
-    phaseDisplay.textContent = `前往：${name}`;
-  } else {
-    phaseDisplay.textContent = `到达：${name}`;
-  }
+  const english = stationEnAtOneBased(state.stopNumber);
+  phaseDisplay.classList.toggle("heading", state.awaitingArrival);
+  phaseDisplay.classList.toggle("arrival", !state.awaitingArrival);
+  if (phaseLabel) phaseLabel.textContent = state.awaitingArrival ? "下一站 NEXT" : "到站 ARRIVING";
+  if (currentStationDisplay) currentStationDisplay.textContent = name;
+  if (currentStationEnDisplay) currentStationEnDisplay.textContent = english;
+  if (nextActionHint) nextActionHint.textContent = `${name}${state.awaitingArrival ? "到站" : "预报"}`;
 
   renderRouteMap();
   requestAnimationFrame(() => {
@@ -1646,30 +1684,21 @@ function twoCharGapPx() {
 }
 
 function adjustRouteMapLayout(cols, connectors) {
-  const dotSize = 14;
-  const sidePadding = 8;
-  const gapPx = twoCharGapPx();
-  const colWidths = cols.map((col, idx) => {
-    const label = col.querySelector(".route-label");
-    const labelW = label ? label.getBoundingClientRect().width + sidePadding : dotSize;
-    const w = Math.max(dotSize, Math.ceil(labelW));
-    col.style.width = `${w}px`;
-    col.style.marginRight = idx < cols.length - 1 ? `${gapPx}px` : "0";
-    return w;
+  const dotSize = 32;
+  const stationWidth = 142;
+  cols.forEach((col) => {
+    col.style.width = `${stationWidth}px`;
+    col.style.marginRight = "0";
   });
-
-  connectors.forEach((line, i) => {
-    const connectorWidth = Math.max(
-      8,
-      Math.round(colWidths[i] / 2 + gapPx + colWidths[i + 1] / 2 - dotSize),
-    );
-    line.style.width = `${connectorWidth}px`;
+  connectors.forEach((line) => {
+    line.style.width = `${stationWidth}px`;
   });
 }
 
 var _routeMapSavedBehavior = '';
 function renderRouteMap() {
   const stations = getStations();
+  const stationsEn = state.route?.directions?.[state.direction]?.stations_en || [];
   // Disable smooth scrolling during rebuild to prevent visual jump
   _routeMapSavedBehavior = routeMapScroll ? routeMapScroll.style.scrollBehavior : '';
   if (routeMapScroll) routeMapScroll.style.scrollBehavior = 'auto';
@@ -1699,6 +1728,10 @@ function renderRouteMap() {
     dot.className = `route-dot ${dotClassForIndex(i)}`;
     dot.dataset.stationIndex = String(i);
     dot.title = name;
+    dot.textContent = String(i + 1);
+    dot.tabIndex = 0;
+    dot.setAttribute("role", "button");
+    dot.setAttribute("aria-label", `跳转到第${i + 1}站 ${name}`);
     dotRow.appendChild(dot);
 
     if (i < n - 1) {
@@ -1712,8 +1745,24 @@ function renderRouteMap() {
 
     const label = document.createElement("div");
     label.className = `route-label ${labelClassForIndex(i)}`;
-    label.textContent = name;
     label.dataset.stationIndex = String(i);
+    label.tabIndex = 0;
+    label.setAttribute("role", "button");
+    label.innerHTML = `<b></b><small></small>`;
+    label.querySelector("b").textContent = name;
+    label.querySelector("small").textContent = stationsEn[i] || "";
+    const jumpViaExistingControl = () => {
+      stationJumpSelect.value = String(i);
+      stationJumpSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    dot.addEventListener("click", jumpViaExistingControl);
+    label.addEventListener("click", jumpViaExistingControl);
+    [dot, label].forEach((node) => node.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        jumpViaExistingControl();
+      }
+    }));
     col.appendChild(label);
 
     row.appendChild(col);
@@ -1753,28 +1802,11 @@ function scrollRouteMapActive(mode) {
   const dotWidth = dot.offsetWidth;
   const dotCenter = dotLeft + dotWidth / 2;
   const maxScroll = Math.max(0, content.offsetWidth - sc.clientWidth);
-  /** 约合一列宽度，用于「左右多露出约 2 站」 */
-  const cellApprox = 56;
-
   const targetCenter = dotCenter - sc.clientWidth / 2;
-  if (mode !== "center") {
-    const viewL = sc.scrollLeft;
-    const viewR = viewL + sc.clientWidth;
-    const marginL = dotLeft - 2 * cellApprox;
-    const marginR = dotLeft + dotWidth + 2 * cellApprox;
-    if (marginL >= viewL && marginR <= viewR) return;
-  }
-
-  let target = targetCenter;
-  if (mode !== "center") {
-    const marginL = dotLeft - 2 * cellApprox;
-    const marginR = dotLeft + dotWidth + 2 * cellApprox;
-    if (marginR - marginL <= sc.clientWidth) {
-      target = marginL;
-    }
-  }
-
-  sc.scrollLeft = Math.max(0, Math.min(maxScroll, target));
+  sc.scrollTo({
+    left: Math.max(0, Math.min(maxScroll, targetCenter)),
+    behavior: mode === "center" ? "smooth" : "smooth",
+  });
 }
 
 /** 预报一步：更新站序并播预报 */
@@ -1930,7 +1962,7 @@ async function switchMode(mode) {
 
   const inNew = mode === "new";
   setEditorDockEnabled(inNew);
-  if (companyRouteWrap) companyRouteWrap.style.display = inNew ? "inline-flex" : "none";
+  if (companyRouteWrap) companyRouteWrap.style.display = inNew ? "grid" : "none";
 
   if (inNew) {
     await loadNewIndex();
@@ -2088,6 +2120,17 @@ arriveBtn.addEventListener("click", () => runArrival());
 stopPlayBtn.addEventListener("click", () => clearPlaybackState());
 replayBtn.addEventListener("click", () => runReplay());
 flipDirBtn.addEventListener("click", () => flipDirection());
+nextAnnounceBtn.addEventListener("click", () => {
+  if (state.awaitingArrival) arriveBtn.click();
+  else preBtn.click();
+});
+if (volumeControl) {
+  volumeControl.addEventListener("input", (event) => {
+    state.playbackVolume = Number(event.target.value) / 100;
+    if (volumeOutput) volumeOutput.textContent = `${event.target.value}%`;
+    if (currentAudioEl) currentAudioEl.volume = state.playbackVolume;
+  });
+}
 
 
 function onGlobalKeydown(ev) {
@@ -2108,6 +2151,12 @@ function onGlobalKeydown(ev) {
   if (tipKeyMap[fk]) {
     ev.preventDefault();
     playTipByIndex(tipKeyMap[fk]);
+    return;
+  }
+
+  if (ev.code === "Space") {
+    ev.preventDefault();
+    nextAnnounceBtn.click();
     return;
   }
 
@@ -2214,8 +2263,10 @@ async function loadLogoImage() {
       console.warn("[logo] Failed to load " + datFile + ":", e.message);
     }
   }
-  await loadOne("logo_main.dat", "logoImage", "image/png");
-  await loadOne("logo_white.dat", "bilibiliIcon", "image/png");
+  await loadOne("logo_archive_white.dat", "logoImage", "image/png");
+  await loadOne("bilibili_icon.dat", "bilibiliIcon", "image/png");
+  await loadOne("gitee_icon.dat", "giteeIcon", "image/png");
+  await loadOne("github_icon.dat", "githubIcon", "image/png");
 }
 
 var _pendingImportTimer = null;

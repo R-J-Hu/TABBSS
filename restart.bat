@@ -11,12 +11,12 @@ set "PORT=8940"
 if exist "%SCRIPT_DIR%port.txt" ( set /p PORT=<"%SCRIPT_DIR%port.txt" )
 
 echo Killing server on port %PORT%...
-powershell -Command "Get-NetTCPConnection -LocalPort '%PORT%' -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host ('Killed PID ' + $_.OwningProcess) } catch {} }"
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort '%PORT%' -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -gt 0 } | Sort-Object OwningProcess -Unique | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host ('Killed PID ' + $_.OwningProcess) } catch {} }"
 
 ping -n 2 127.0.0.1 >nul
 
 echo Starting server...
-powershell -Command "Start-Process -FilePath 'python' -ArgumentList '%SCRIPT_DIR%scripts\local_server.py','--port','%PORT%','--root','%SCRIPT_DIR%' -WindowStyle Minimized"
+powershell -NoProfile -Command "$serverScript='%SCRIPT_DIR%scripts\local_server.py'; $projectRoot='%SCRIPT_DIR%.'; $serverArgs=('\"{0}\" --port {1} --root \"{2}\"' -f $serverScript,'%PORT%',$projectRoot); Start-Process -FilePath 'python' -ArgumentList $serverArgs -WindowStyle Hidden"
 
 echo Waiting for server...
 set /a TRIES=0

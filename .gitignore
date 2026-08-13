@@ -47,9 +47,15 @@ release_devfunct.spec
 # ── AI Agent 文件 ──────────────────────────────────────
 AGENTS.md
 CLAUDE.md
+.agents/
+
+# ── UI 内部原型 ───────────────────────────────────────────────
+ui-prototype.design/
+ui-redesign-prototype.design/
 
 # ── 推送/上传脚本（含令牌，不公开）──────────────────
 _push_remotes.bat
+_verify_release.bat
 _upload_release.py
 _upload_release.bat
 _release_notes.md

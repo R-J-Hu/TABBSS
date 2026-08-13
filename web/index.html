@@ -4,28 +4,96 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>档案库报站器 内测版</title>
-  <link rel="stylesheet" href="./style.css?v=20260809" />
-  <link rel="stylesheet" href="./editor.css?v=20260809" />
+  <link rel="stylesheet" href="./style.css?v=20260814" />
+  <link rel="stylesheet" href="./editor.css?v=20260814" />
+  <link rel="stylesheet" href="./ui-redesign.css?v=20260814" />
 </head>
 <body>
+  <svg class="icon-defs" aria-hidden="true" focusable="false">
+    <symbol id="icon-broadcast" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24"><path d="m4 16.5-.8 3.8 3.8-.8L18.6 7.9a2.1 2.1 0 0 0-3-3L4 16.5Z"/><path d="m13.8 6.2 4 4"/></symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10.5v5M12 7.5h.01"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 6v5h-5"/><path d="M19 11a7.5 7.5 0 1 0 1 4"/></symbol>
+    <symbol id="icon-switch" viewBox="0 0 24 24"><path d="M7 7h12l-3-3M17 17H5l3 3M19 7l-3-3M5 17l3 3"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 16V4M8 8l4-4 4 4M5 15v5h14v-5"/></symbol>
+    <symbol id="icon-next-station" viewBox="0 0 24 24"><path d="M4 17 10 11 4 5M11 17l6-6-6-6" transform="rotate(45 12 11)"/></symbol>
+  </svg>
   <main class="app" id="appRoot">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between">
-      <img id="logoImage" src="" alt="交通档案库" style="height:64px;display:block;opacity:0.9">
-      <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" style="display:inline-flex;align-items:center;gap:8px;background:#FF6699;color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0">
-        <img id="bilibiliIcon" src="" alt="" style="width:20px;height:20px">
-        <span>交通档案库 Bilibili主页</span>
-      </a>
-    </div>
-    <h1>档案库报站模拟器 <span class="ver">V1.6</span></h1>
-    <p class="hint">预报可连按跳站；到站可重播当前站到站。<strong>预报重播</strong>会重播当前站预报并切换为前往该站状态。快捷键：1–9、0 服务语，F7 换向，F8 停止，F9 到站，F10 预报，F11 预报重播。</p>
-    <p id="editionWarning" style="color:#dc2626;font-weight:700;font-size:14px;margin:0 0 10px"></p>
-    <span class="build-badge" id="buildBadge">Build 219 2026-08-09 14:53:16</span>
-    <div class="update-banner" id="updateBanner" style="display:none">
-      <span class="update-banner-text" id="updateBannerText"></span>
-      <button class="update-banner-btn" id="updateBannerBtn">下载更新</button>
-      <button class="update-banner-close" id="updateBannerClose">&times;</button>
-    </div>
-    <p class="version-tag" id="buildTag">版本信息：V1.6 — 新增可视化线路编辑器（三层架构：公司→线路→编辑）、规则编辑器组件、全局模版/各站规则/手按提示语编辑、模板创建/复制线路、校验系统（线路错误+音频警告分类）、媒体文件夹管理（排序/上传/删除）、高级文本编辑器语法高亮、线路重命名自动更新、车站/线路/公司拖拽排序。修复导入导出功能：zip中文文件名UTF-8编码、隐式站名语音文件收集（{本站}旧格式兼容）、导入公司路径重映射、冲突检测路径比较、导入后索引刷新、Content-Disposition中文编码。（Build 195 2026-06-01）
+    <aside class="brand-rail">
+      <nav class="rail-nav" aria-label="主目录">
+        <button type="button" id="playerNavBtn" class="rail-nav-item active"><svg class="ui-icon"><use href="#icon-broadcast"></use></svg><span>报站</span></button>
+        <button type="button" id="lineEditorToggle" class="rail-nav-item"><i aria-hidden="true">✎</i><span>编辑器</span></button>
+        <button type="button" id="aboutNavBtn" class="rail-nav-item"><i aria-hidden="true">⚙</i><span>设置</span></button>
+        <button type="button" id="devPanelToggle" class="rail-nav-item dev-nav-item"><i aria-hidden="true">🔨</i><span>开发者模式</span></button>
+      </nav>
+      <footer class="rail-footer">
+        <small>V1.6 Build 227<br>交通档案库版权所有</small>
+        <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" class="rail-social rail-social-bilibili" aria-label="交通档案库 Bilibili 主页"><img id="bilibiliIcon" src="" alt=""><span>BILIBILI 主页</span></a>
+        <a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener" class="rail-social rail-social-gitee"><img id="giteeIcon" src="" alt=""><span>Gitee 主页</span></a>
+        <a href="https://github.com/R-J-Hu/TABBSS/" target="_blank" rel="noopener" class="rail-social rail-social-github"><img id="githubIcon" src="" alt=""><span>Github 主页</span></a>
+      </footer>
+    </aside>
+
+    <div class="player-page">
+      <header class="topbar">
+        <div class="topbar-copy"><div class="brand-mark"><img id="logoImage" src="" alt="交通档案库"></div><div><h1>交通档案库</h1><p>报站模拟器</p></div></div>
+        <div class="topbar-route-selectors" aria-label="公司与线路选择">
+          <label class="topbar-select-label mode-select"><span>模式</span><select id="modeSelect"><option value="new">档案库新架构</option><option value="compat">海峡兼容模式</option></select></label>
+          <label id="companyRouteWrap" class="topbar-select-label"><span>公司</span><select id="companyRouteSelect"></select></label>
+          <label class="topbar-select-label line-select"><span>线路</span><select id="routeSelect"></select></label>
+        </div>
+        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 227 2026-08-14 00:45:19</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
+      </header>
+      <p id="editionWarning" class="edition-warning"></p>
+      <div class="update-banner" id="updateBanner" style="display:none">
+        <span class="update-banner-text" id="updateBannerText"></span>
+        <button class="update-banner-btn" id="updateBannerBtn">下载更新</button>
+        <button class="update-banner-close" id="updateBannerClose" aria-label="关闭更新提示">&times;</button>
+      </div>
+
+      <section class="status-card">
+        <div class="status-summary">
+          <div id="phaseDisplay" class="phase-display arrival"><span class="phase-icon"><svg class="phase-arrival-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.4 7-13A7 7 0 1 0 5 9c0 6.6 7 13 7 13Z"/><circle cx="12" cy="9" r="2.8"/></svg><svg class="phase-heading-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-next-station"></use></svg></span><b id="phaseLabel">到站 ARRIVING</b></div>
+          <h1 id="currentStationDisplay">—</h1>
+          <p id="currentStationEnDisplay" class="station-en"></p>
+          <label class="volume-control"><span aria-hidden="true">♬</span><input id="volumeControl" type="range" min="0" max="100" value="62" aria-label="播放音量"><output id="volumeOutput">62%</output></label>
+          <div class="runtime-controls" hidden><span id="stopNumberDisplay">1</span><span id="stopTotalDisplay">0</span><select id="stationJumpSelect" aria-label="跳站（到站态）"></select></div>
+        </div>
+        <div class="route-visual">
+          <div class="route-title"><strong><span id="lineExternalDisplay" aria-live="polite">—</span><small id="routeDestinationEnDisplay"></small></strong><span class="route-direction"><select id="directionSelect"><option value="up">上行</option><option value="down">下行</option></select><button type="button" id="flipDirBtn" class="direction-btn"><span aria-hidden="true">↔</span><span>切换上下行</span><span class="kbd">F7</span></button></span></div>
+          <div class="route-map-scroll" id="routeMapScroll"><div id="routeMap"></div></div>
+          <p class="route-help">点击站点可跳转（到站态）</p>
+          <button id="switchToEditorLineBtn" class="quiet-btn switch-editor-line" style="display:none">切换到当前正在编辑的线路</button>
+        </div>
+      </section>
+
+      <section class="action-layout">
+        <div class="announcement-controls">
+          <span class="eyebrow">主报站控制</span>
+          <div class="main-actions">
+            <button type="button" id="nextAnnounceBtn" class="next-action"><svg class="next-action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-next-station"></use></svg><span>播报下一条</span><small id="nextActionHint">下一站预报</small><b>空格键</b></button>
+            <div class="secondary-actions">
+              <button id="preBtn" class="primary-action"><span>预报</span><small>前往下一站</small><b>F10</b></button>
+              <button id="arriveBtn" class="arrival-action"><span>到站</span><small>播报当前站</small><b>F9</b></button>
+              <button type="button" id="replayBtn"><span>预报重播</span><b>F11</b></button>
+              <button type="button" id="stopPlayBtn" class="stop-action"><span>停止播放</span><b>F8</b></button>
+            </div>
+          </div>
+        </div>
+        <div class="service-voices"><div class="section-heading"><span class="eyebrow">手按提示语</span><span>快捷键 1–9、0</span></div><div id="tipButtons"></div></div>
+      </section>
+
+      <section class="queue-panel">
+        <div class="queue-header"><span class="eyebrow">播放队列</span><span class="queue-state" id="queueStateDisplay">就绪</span></div>
+        <ol id="queueView"></ol>
+      </section>
+
+      <p class="version-tag" id="buildTag">版本信息：V1.6 — 新增可视化线路编辑器（三层架构：公司→线路→编辑）、规则编辑器组件、全局模版/各站规则/手按提示语编辑、模板创建/复制线路、校验系统（线路错误+音频警告分类）、媒体文件夹管理（排序/上传/删除）、高级文本编辑器语法高亮、线路重命名自动更新、车站/线路/公司拖拽排序。修复导入导出功能：zip中文文件名UTF-8编码、隐式站名语音文件收集（{本站}旧格式兼容）、导入公司路径重映射、冲突检测路径比较、导入后索引刷新、Content-Disposition中文编码。（Build 195 2026-06-01）
 （Build 196 2026-06-04）修复公司级导入导出：导入详细错误日志、L0导入提示输入新公司名、导出文件缺失日志
 （Build 197 2026-06-13）导出容错：index.json中缺失的文件跳过而非中断整个导出；L0导入改为选公司弹窗
 （Build 198 2026-06-14）媒体文件夹增强：在系统打开、拖拽上传、复制/移动、多选批量操作、L2快捷入口；Logo加密加载；文档重组至insider_resource
@@ -48,83 +116,29 @@
 （Build 217 2026-08-08）macOS构建支持：tabbss.spec新增macOS BUNDLE()段（.app打包+Info.plist配置+图标）；build_release.py新增macOS DMG构建流程（hdiutil+zip fallback）；RELEASE TUI新增macOS选项及平台检测警告（Windows上勾选macOS时提示无法交叉编译，需在Mac上运行）
 （Build 218 2026-08-08）各站特殊规则默认模板可视化：空规则/仅含默认模版时展开显示默认序列+遮罩（点击点破）；失焦自动折叠完整默认序列为【默认模版】；移除了【默认模版】手动插入参数；zhAudioRel/enAudioRel默认值展示（缩略"默认"）；【下站英文】tag颜色改为黄色
 （Build 219 2026-08-09）默认模板遮罩体验优化：亮青半透明遮罩+逐tag斜线纹理；紧凑化编辑框首尾空隙（gap/inserter 收拢进wrapper）；遮罩内tag站名注释（预报/到站上下文区分）；自定义规则不误显遮罩；默认字样CSS伪元素顶部显示；参数体系规范化（【本站英文同名文件】→【本站英文文件】）；音频字段参数补全
-</p>
 
-    <section class="panel line-display-panel">
-      <div class="line-external" id="lineExternalDisplay" aria-live="polite">—</div>
-    </section>
+（Build 220 2026-08-10）以主分支功能为准移植交通调度台 Player UI：新增顶部公司/线路选择、报站/编辑/关于主目录、状态与线路图组合面板、控制台式报站按钮、服务语和播放队列布局；完整保留 Build 219 的报站逻辑、版本警告、更新横幅和开发者入口。
+（Build 221 2026-08-11）整合可视化线路编辑器视觉：统一侧栏头部、卡片操作、底部工具栏、线性图标和响应式布局；保留默认模板遮罩、海峡兼容导入、媒体管理及 Build 219 编辑器功能。
+（Build 222 2026-08-13）将 Player 交互原型合入主工程：重构顶栏、侧栏、状态线路图、主控制、提示语和播放队列；所有报站、跳站及换向继续复用主工程事件与接口，新增“播报下一条”仅按当前状态分派到既有预报或到站按钮。
+（Build 223 2026-08-13）逐像素复核 Player 主工程与 Build 222 独立原型：消除旧样式层叠泄漏，统一顶栏、侧栏、状态卡、固定 142px 站点节距、图标、控制按钮、提示语和队列的尺寸、间距、字体、颜色及响应式细节。
+（Build 224 2026-08-13）基于 1440×900 主工程/独立原型实页截图与 DOM 几何对比修正顶栏：公司选择器恢复 grid、全部选择器固定 42px 垂直居中，并切换为透明底白色 Logo 加密资源。
+（Build 225 2026-08-13）完善双语站名两行截断与固定行区、控制模块等高、INI 文件名显示、下一站/开发者图标、右侧视口固定侧栏、未来站蓝色圆点及三平台品牌按钮。
+（Build 226 2026-08-14）顶栏提升为全宽最高层，右栏加宽并置于顶栏下方；编辑器、设置和开发者模式统一从右侧栏左侧展开，四个导航入口及面板关闭键采用单面板互斥状态。
+（Build 227 2026-08-14）顶栏组件整体缩小 15%，线路下拉改为 index.json 显示名并限制为公司选框宽度的 1.5 倍；模块标题去粗，右侧栏改为浅灰蓝主题且保留三个平台按钮品牌色，侧面板改为无动画即时切换。</p>
 
-    <section class="panel">
-      <label>模式
-        <select id="modeSelect">
-          <option value="new">档案库新架构</option>
-          <option value="compat">海峡兼容模式</option>
-        </select>
-      </label>
-      <label id="companyRouteWrap">公司
-        <select id="companyRouteSelect"></select>
-      </label>
-      <label>线路
-        <select id="routeSelect"></select>
-      </label>
-      <label>方向
-        <select id="directionSelect">
-          <option value="up">上行</option>
-          <option value="down">下行</option>
-        </select>
-      </label>
-      <button type="button" id="flipDirBtn">切换上下行 <span class="kbd">F7</span></button>
-      <label>跳站（到站态）
-        <select id="stationJumpSelect"></select>
-      </label>
-      <span class="status-line">站序 <strong id="stopNumberDisplay">1</strong> / <span id="stopTotalDisplay">0</span></span>
-      <span class="status-line" id="phaseDisplay">到达第一站</span>
-      <button id="reloadBtn">重新加载线路索引</button>
-      <button id="switchToEditorLineBtn" style="display:none">切换到当前正在编辑的线路</button>
-    </section>
-
-    <section class="panel route-map-panel">
-      <h2>线路图</h2>
-      <div class="route-map-scroll" id="routeMapScroll">
-        <div id="routeMap"></div>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="btns">
-        <button id="preBtn">预报 <span class="kbd">F10</span></button>
-        <button id="arriveBtn" class="btn-gap">到站 <span class="kbd">F9</span></button>
-        <button type="button" id="replayBtn" class="btn-gap">预报重播 <span class="kbd">F11</span></button>
-        <button type="button" id="stopPlayBtn">停止播放 <span class="kbd">F8</span></button>
-      </div>
-      <p class="hint small">回本方向终点站且已「到达」后按预报，将自动切换另一方向并从新方向第一站始发展开预报。</p>
-      <div class="btns" id="tipButtons"></div>
-    </section>
-
-    <section class="panel">
-      <h2>播放队列</h2>
-      <ol id="queueView"></ol>
-    </section>
-
-    <section class="panel debug-panel" id="debugPanel">
+      <section class="debug-panel" id="debugPanel">
       <h2>Dev 调试信息</h2>
       <pre id="debugView"></pre>
-    </section>
+      </section>
+    </div>
   </main>
 
-  <button id="editorToggle" class="editor-toggle" type="button" style="top:96px;">线路文件面板</button>
-  <button id="lineEditorToggle" class="editor-toggle" type="button" style="top:140px;">线路编辑器</button>
-  <button id="devPanelToggle" type="button" style="position:fixed;right:0;top:56px;z-index:30;border-radius:10px 0 0 10px;background:#2563eb;color:#fff;border:1px solid #3b82f6;border-right:none;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer">开发者功能</button>
-  <aside id="devPanelSidebar" style="position:fixed;top:0;right:0;width:340px;height:100vh;z-index:40;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,0.12);transform:translateX(100%);transition:transform 0.24s ease;overflow-y:auto">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #e5e7eb">
-      <h2 style="margin:0;font-size:16px;color:#111827">开发者功能</h2>
-      <button type="button" id="devPanelClose" style="background:none;border:none;font-size:24px;color:#9ca3af;cursor:pointer;line-height:1">&times;</button>
-    </div>
-    <div id="devPanelBody" style="padding:16px"></div>
-    <div style="padding:12px 16px;border-top:1px solid #e5e7eb">
-      <button id="devPanelSave" class="ed-btn ed-btn-primary">保存</button>
-    </div>
+  <aside id="devPanelSidebar" class="dev-panel-sidebar">
+    <div class="dev-panel-head"><h2>开发者功能</h2><button type="button" id="devPanelClose" aria-label="关闭开发者功能">&times;</button></div>
+    <div id="devPanelBody" class="dev-panel-body"></div>
+    <div class="dev-panel-footer"><button id="devPanelSave" class="ed-btn ed-btn-primary">保存</button></div>
   </aside>
+
   <aside class="editor-dock" id="fileSidebar">
     <div class="dock-head">
       <h2>线路文件编辑</h2>
@@ -146,7 +160,10 @@
   <aside class="editor-dock line-editor-dock" id="lineEditorSidebar">
     <div class="dock-head ed-header">
       <div class="ed-breadcrumb" id="edBreadcrumb"></div>
-      <button type="button" id="lineEditorCloseBtn" class="dock-close">x</button>
+      <div class="ed-header-tools">
+        <button id="editorToggle" class="editor-toggle editor-header-tool" type="button" title="打开高级文本编辑器"><svg class="ui-icon"><use href="#icon-file"></use></svg><span>高级文本</span></button>
+        <button type="button" id="lineEditorCloseBtn" class="dock-close" aria-label="关闭编辑器"><svg class="ui-icon"><use href="#icon-close"></use></svg></button>
+      </div>
     </div>
     <div class="ed-page-container" id="edPageContainer">
       <!-- L0: Company List -->
@@ -155,8 +172,8 @@
         <div class="ed-current-line" id="edL0CurrentLine"></div>
         <div class="ed-list" id="edCompanyList"></div>
         <div class="ed-page-actions">
-          <button id="edAddCompanyBtn" class="ed-btn">+ 添加公司</button>
-          <button id="edL0ImportBtn" class="ed-btn ed-btn-ghost">导入线路文件</button>
+          <button id="edAddCompanyBtn" class="ed-btn"><svg class="ui-icon"><use href="#icon-plus"></use></svg><span>添加公司</span></button>
+          <button id="edL0ImportBtn" class="ed-btn ed-btn-ghost"><svg class="ui-icon"><use href="#icon-upload"></use></svg><span>导入线路文件</span></button>
           <a id="edL0HaixiaLink" class="ed-haixia-link">导入海峡报站器线路（兼容模式）</a>
         </div>
       </div>
@@ -167,15 +184,15 @@
         <div class="ed-list" id="edLineList"></div>
         <div class="ed-page-actions">
           <div class="ed-dropdown" id="edAddLineDropdown">
-            <button id="edAddLineBtn" class="ed-btn">+ 添加线路 v</button>
+            <button id="edAddLineBtn" class="ed-btn"><svg class="ui-icon"><use href="#icon-plus"></use></svg><span>添加线路</span><span class="ed-chevron">⌄</span></button>
             <div class="ed-dropdown-menu" id="edAddLineMenu">
               <button data-action="blank">从空白创建</button>
               <button data-action="template">以现有线路为模版创建</button>
               <button data-action="copy">复制现有线路</button>
             </div>
           </div>
-          <button id="edMediaFolderBtn" class="ed-btn ed-btn-ghost">打开媒体文件夹</button>
-          <button id="edImportBtn" class="ed-btn ed-btn-ghost">导入线路文件</button>
+          <button id="edMediaFolderBtn" class="ed-btn ed-btn-ghost"><svg class="ui-icon"><use href="#icon-folder"></use></svg><span>媒体文件夹</span></button>
+          <button id="edImportBtn" class="ed-btn ed-btn-ghost"><svg class="ui-icon"><use href="#icon-upload"></use></svg><span>导入线路文件</span></button>
         </div>
       </div>
       <!-- L2: Line Editor -->
@@ -200,9 +217,20 @@
     </div>
   </aside>
 
-  <script src="./editor-core.js?v=20260809"></script>
-  <script src="./editor-components.js?v=20260809"></script>
-  <script src="./main.js?v=20260809"></script>
-  <script src="./editor-ui.js?v=20260809"></script>
+  <aside class="about-panel" id="aboutPanel" aria-label="关于档案库报站模拟器" hidden>
+    <div class="about-panel-head"><div><span class="eyebrow">ABOUT</span><h2>关于档案库报站模拟器</h2></div><button type="button" id="aboutCloseBtn" class="about-close" aria-label="关闭关于"><svg class="ui-icon"><use href="#icon-close"></use></svg></button></div>
+    <div class="about-panel-body">
+      <div class="about-mark"><svg class="ui-icon"><use href="#icon-broadcast"></use></svg></div>
+      <h3>档案库报站器</h3>
+      <p>面向公交报站线路文件的本地管理、编辑与播放模拟工具。</p>
+      <dl><div><dt>版本</dt><dd>V1.6</dd></div><div><dt>当前构建</dt><dd>Build 227</dd></div><div><dt>运行方式</dt><dd>本地桌面应用</dd></div></dl>
+    </div>
+  </aside>
+
+  <script src="./editor-core.js?v=20260814"></script>
+  <script src="./editor-components.js?v=20260814"></script>
+  <script src="./main.js?v=20260814"></script>
+  <script src="./editor-ui.js?v=20260814"></script>
+  <script src="./panel-controller.js?v=20260814"></script>
 </body>
 </html>

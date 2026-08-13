@@ -15,8 +15,8 @@ if exist "%SCRIPT_DIR%port.txt" (
     set /p PORT=<"%SCRIPT_DIR%port.txt"
 )
 
-:: 用 PowerShell 更可靠地杀掉占着端口的旧进程（杀掉 pythonw 和 python 两种）
-powershell -Command "Get-NetTCPConnection -LocalPort '%PORT%' -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host ('Killed PID ' + $_.OwningProcess) } catch {} }"
+:: Stop the previous server without attempting to terminate PID 0.
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort '%PORT%' -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -gt 0 } | Sort-Object OwningProcess -Unique | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host ('Killed PID ' + $_.OwningProcess) } catch {} }"
 
 echo.
 echo Project: %SCRIPT_DIR%
@@ -24,8 +24,8 @@ echo Port: %PORT%
 echo URL: http://127.0.0.1:%PORT%/
 echo.
 
-:: 用 PowerShell Start-Process 启动服务器，最小化运行（无弹窗）
-powershell -Command "Start-Process -FilePath '%PY_CMD%' -ArgumentList '%SCRIPT_DIR%scripts\local_server.py','--port','%PORT%','--root','%SCRIPT_DIR%' -WindowStyle Minimized -PassThru | Out-Null"
+:: Quote script and project paths because the workspace path contains spaces.
+powershell -NoProfile -Command "$serverScript='%SCRIPT_DIR%scripts\local_server.py'; $projectRoot='%SCRIPT_DIR%.'; $serverArgs=('\"{0}\" --port {1} --root \"{2}\"' -f $serverScript,'%PORT%',$projectRoot); Start-Process -FilePath '%PY_CMD%' -ArgumentList $serverArgs -WindowStyle Hidden -PassThru | Out-Null"
 
 echo Waiting for server...
 set /a RETRIES=0
@@ -44,9 +44,9 @@ if errorlevel 1 (
 echo Server ready!
 start "" "http://127.0.0.1:%PORT%/"
 echo.
-echo 完成！请等待浏览器打开报站器.
+echo Done. The browser should open the simulator shortly.
 echo To stop the server: open Task Manager and end the 'python' process.
-pause
+if not "%~1"=="--no-pause" pause
 goto :eof
 
 :find_python
