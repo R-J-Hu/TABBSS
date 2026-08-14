@@ -1,7 +1,11 @@
 # 档案库报站模拟器（TABBSS）
 
+Traffic Archive Bus Boardcasting Simulator System
+
 公交报站模拟与线路数据管理桌面应用。
 【该Readme在发布时会再行更新。预计发布时间：8月底】
+
+请关注交通档案库Bilibili：https://space.bilibili.com/3546768098724617
 
 ## 功能
 
