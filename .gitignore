@@ -88,3 +88,6 @@ output/
 .vscode/
 .idea/
 .trae/
+
+# ── 测试用 spec ──
+test_launch*.spec

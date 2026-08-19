@@ -62,7 +62,7 @@ Function .onInit
 
   ; Process IS running — ask user
   MessageBox MB_YESNO|MB_ICONQUESTION \
-    "检测到 档案库报站模拟器 正在运行。$\n$\n是否关闭程序并继续安装？$\n(线路数据不会被覆盖)" \
+    "检测到 档案库报站模拟器 正在运行。$\n$\n是否关闭程序并继续安装？$\n(线路数据将合并：新增线路、保留现有)" \
     IDYES kill IDNO abort
   kill:
     nsExec::ExecToStack 'taskkill /F /IM ${APP_EXE}'
@@ -83,7 +83,7 @@ Section "!档案库报站模拟器 (必需)" SecMain
   ; Main executable (always installed)
   File "{{BUILD_DIR}}\{{APP_EXE}}"
 
-  ; Data directories — only on fresh install
+  ; Data directories — fresh install installs directly; upgrade stages to .update_package
   ${If} $UpgradeMode == "0"
     SetOutPath "$INSTDIR\报站线路文件库"
     File /nonfatal /r "{{BUILD_DIR}}\报站线路文件库\*"
@@ -93,6 +93,10 @@ Section "!档案库报站模拟器 (必需)" SecMain
 
     SetOutPath "$INSTDIR\output"
     File /nonfatal /r "{{BUILD_DIR}}\output\*"
+  ${Else}
+    ; Upgrade: stage new line data for app-side merge (existing lines are never overwritten)
+    SetOutPath "$INSTDIR\.update_package\报站线路文件库"
+    File /nonfatal /r "{{BUILD_DIR}}\报站线路文件库\*"
   ${EndIf}
 
   ; Grant write permission on data dirs (Program Files is read-only)
@@ -102,6 +106,10 @@ Section "!档案库报站模拟器 (必需)" SecMain
   Pop $0
   nsExec::ExecToStack 'icacls "$INSTDIR\output" /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q'
   Pop $0
+  ${If} $UpgradeMode == "1"
+    nsExec::ExecToStack 'icacls "$INSTDIR\.update_package" /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q'
+    Pop $0
+  ${EndIf}
 
   ; Write uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -193,7 +201,7 @@ SectionEnd
 
 
 ; ── Section descriptions ──────────────────────────────────
-LangString DESC_SecMain ${LANG_SIMPCHINESE} "档案库报站模拟器主程序及线路数据。升级安装时不会覆盖已有线路数据。"
+LangString DESC_SecMain ${LANG_SIMPCHINESE} "档案库报站模拟器主程序及线路数据。升级安装时会合并新增线路（保留现有数据）。"
 LangString DESC_SecDesktop ${LANG_SIMPCHINESE} "在桌面创建快捷方式。"
 LangString DESC_SecWebView2 ${LANG_SIMPCHINESE} "Microsoft Edge WebView2 运行时，用于页面正常显示。如系统已安装则自动跳过。"
 LangString DESC_SecFFmpeg ${LANG_SIMPCHINESE} "FFmpeg 用于音频格式转换。如不需要可取消勾选以节省空间。"

@@ -25,7 +25,7 @@
     overlay.className = "ed-modal-overlay";
     overlay.innerHTML = '<div class="ed-modal" style="width:400px">' +
       '<div class="ed-modal-header"><h3>' + LE.escHtml(title) + '</h3></div>' +
-      '<div class="ed-modal-body"><p style="margin:0;color:#e2e8f0">' + LE.escHtml(message) + '</p></div>' +
+      '<div class="ed-modal-body"><p style="margin:0;color:#20355c">' + LE.escHtml(message) + '</p></div>' +
       '<div class="ed-modal-footer">' +
       '<button class="ed-btn ed-btn-ghost" id="emCancelBtn">取消</button>' +
       '<button class="ed-btn ' + (danger ? 'ed-btn-danger' : 'ed-btn-primary') + '" id="emConfirmBtn">确认</button></div></div>';
@@ -42,7 +42,7 @@
     overlay.innerHTML = '<div class="ed-modal" style="width:420px">' +
       '<div class="ed-modal-header"><h3>' + LE.escHtml(title) + '</h3></div>' +
       '<div class="ed-modal-body">' +
-      '<input id="emPromptInput" style="width:100%;padding:8px 10px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#f1f5f9;font-size:13px;box-sizing:border-box" placeholder="' + LE.escHtml(placeholder || '') + '" value="' + LE.escHtml(defaultValue || '') + '">' +
+      '<input id="emPromptInput" style="width:100%;padding:8px 10px;background:#ffffff;border:1px solid #d8e3f1;border-radius:6px;color:#17345f;font-size:13px;box-sizing:border-box" placeholder="' + LE.escHtml(placeholder || '') + '" value="' + LE.escHtml(defaultValue || '') + '">' +
       cbHtml +
       '</div>' +
       '<div class="ed-modal-footer">' +
@@ -206,15 +206,12 @@
       var parts = ms.currentLineFile.split("/");
       var company = parts[0] || "";
       var fileName = parts[1] || "";
-      // Get display name from index.json (includes version info), fallback to internal name or filename
+      // Display the registered name — the registered filename in index.json
+      // (basename without extension). index.json `name` is set at creation and
+      // can be stale/short (e.g. INI 线路名称=4); the registered filename is
+      // the stable identity shown in the topbar select and the editor
+      // current-line header.
       var displayName = fileName.replace(/\.ini$/i, "");
-      if (ms.newIndex && ms.newIndex.companies) {
-        var comp = ms.newIndex.companies.find(function (c) { return c.name === company; });
-        if (comp && comp.lines) {
-          var entry = comp.lines.find(function (l) { return l.file === ms.currentLineFile; });
-          if (entry && entry.name) displayName = entry.name;
-        }
-      }
       if (!displayName && ms.route && ms.route.name) displayName = ms.route.name;
       el.innerHTML = '编辑当前线路：<a id="edEditCurrentLine">' + LE.escHtml(displayName) + '</a>';
       el.querySelector("#edEditCurrentLine").addEventListener("click", function () {
@@ -406,9 +403,25 @@
     var l0ImportBtn = $("edL0ImportBtn");
     if (l0ImportBtn) l0ImportBtn.onclick = function () { LE.importZip(null); };
 
-    // Haixia compat info link on L0
-    var haixiaLink = $("edL0HaixiaLink");
-    if (haixiaLink) haixiaLink.onclick = function () { LE.showHaixiaCompatInfo(); };
+    // Import-from-other-announcer dropdown on L0
+    var importOtherDropdown = $("edL0ImportOtherDropdown");
+    var importOtherMenu = $("edL0ImportOtherMenu");
+    if (importOtherDropdown && importOtherMenu) {
+      var importOtherBtn = $("edL0ImportOtherBtn");
+      if (importOtherBtn) importOtherBtn.onclick = function (e) {
+        e.stopPropagation();
+        importOtherDropdown.classList.toggle("open");
+      };
+      importOtherMenu.querySelectorAll("button").forEach(function (btn) {
+        btn.onclick = function (e) {
+          e.stopPropagation();
+          importOtherDropdown.classList.remove("open");
+          if (btn.dataset.action === "haixia") LE.showHaixiaCompatInfo();
+          else if (btn.dataset.action === "lanshi") LE.showLanShiComingSoon();
+        };
+      });
+      document.addEventListener("click", function () { importOtherDropdown.classList.remove("open"); });
+    }
 
     // Add company — creates dir + registers in index.json
     var addCompanyBtn = $("edAddCompanyBtn");
@@ -493,9 +506,13 @@
 
     var overlay = document.createElement("div");
     overlay.className = "ed-modal-overlay";
-    overlay.innerHTML = '<div class="ed-modal" style="width:540px">' +
-      '<div class="ed-modal-header"><h3>如何导入海峡报站器线路？</h3><button class="ed-modal-close">x</button></div>' +
-      '<div class="ed-modal-body ed-haixia-modal-body">' +
+    // Modal format aligned with the update-check dialog (update-modal family).
+    overlay.innerHTML = '<div class="haixia-modal">' +
+      '<div class="update-modal-head">' +
+        '<div><span class="eyebrow">HAIXIA</span><h2>如何导入海峡报站器线路？</h2></div>' +
+        '<button type="button" class="update-modal-close" aria-label="关闭"><svg class="ui-icon"><use href="#icon-close"></use></svg></button>' +
+      '</div>' +
+      '<div class="update-modal-body ed-haixia-modal-body">' +
         '<p style="margin:0 0 12px">' +
           '请打开「<img id="haixiaLogoImg" class="ed-haixia-inline-img" src="" alt="">' +
           '<span class="ed-haixia-bold-cyan">海峡报站模拟器</span>」程序目录下的"报站音"文件夹，' +
@@ -504,9 +521,9 @@
         '</p>' +
         '<img id="haixiaGuideImg" class="ed-haixia-guide-img" src="" alt="操作图示">' +
       '</div>' +
-      '<div class="ed-modal-footer">' +
-        '<button class="ed-btn ed-btn-ghost" id="hxCancelBtn">关闭</button>' +
-        '<button class="ed-btn ed-btn-primary" id="hxOpenBtn">' +
+      '<div class="update-modal-footer">' +
+        '<button type="button" class="update-modal-btn update-modal-btn-ghost" id="hxCancelBtn">关闭</button>' +
+        '<button type="button" class="update-modal-btn update-modal-btn-primary" id="hxOpenBtn">' +
           '<img id="hxBtnIcon" class="ed-haixia-btn-icon" src="" alt="">我知道了，打开档案库海峡兼容文件夹' +
         '</button>' +
       '</div></div>';
@@ -529,7 +546,7 @@
       if (img) img.src = uri;
     }).catch(function () {});
 
-    overlay.querySelector(".ed-modal-close").onclick = function () { overlay.remove(); };
+    overlay.querySelector(".update-modal-close").onclick = function () { overlay.remove(); };
     overlay.querySelector("#hxCancelBtn").onclick = function () { overlay.remove(); };
     overlay.querySelector("#hxOpenBtn").onclick = function () {
       LE.api.openFolder("兼容模式-海峡报站器文件库").then(function () {
@@ -539,6 +556,28 @@
       });
     };
     overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) overlay.remove(); });
+  };
+
+  /* ── Lanshi Import Coming Soon Modal ── */
+  LE.showLanShiComingSoon = function () {
+    var overlay = document.createElement("div");
+    overlay.className = "ed-modal-overlay";
+    overlay.innerHTML = '<div class="haixia-modal lanshi-modal" style="width:420px">' +
+      '<div class="update-modal-head">' +
+        '<div><span class="eyebrow">LANSHI</span><h2>导入蓝斯报站器线路</h2></div>' +
+        '<button type="button" class="update-modal-close" aria-label="关闭"><svg class="ui-icon"><use href="#icon-close"></use></svg></button>' +
+      '</div>' +
+      '<div class="update-modal-body" style="text-align:center;color:#3c4c66;font-size:15px;padding:30px 22px">即将完工，敬请期待</div>' +
+      '<div class="update-modal-footer">' +
+        '<button type="button" class="update-modal-btn update-modal-btn-primary" id="lanshiOkBtn">知道了</button>' +
+      '</div></div>';
+    $("lineEditorSidebar").appendChild(overlay);
+    var close = function () { overlay.remove(); };
+    var x = overlay.querySelector(".update-modal-close");
+    if (x) x.onclick = close;
+    var ok = overlay.querySelector("#lanshiOkBtn");
+    if (ok) ok.onclick = close;
+    overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) close(); });
   };
 
   /* ── L1: Line List ── */
@@ -627,7 +666,7 @@
         html += '<a class="ed-card-edit">编辑</a>';
         html += '<a class="ed-card-rename">重命名</a>';
         html += '<a class="ed-card-del">删除</a>';
-        html += '<span style="color:#334155;margin:0 2px">|</span>';
+        html += '<span style="color:#d8e3f1;margin:0 2px">|</span>';
         html += '<a class="ed-card-move">移动到…</a>';
         html += '<a class="ed-card-copy">复制到…</a>';
         html += '<a class="ed-card-export">导出</a>';
@@ -1190,8 +1229,8 @@
       popup.innerHTML = '<div class="ed-modal" style="width:320px;text-align:center">' +
         '<div class="ed-modal-body" style="padding:32px 16px">' +
         '<div style="font-size:40px;color:#22c55e;margin-bottom:12px">✓</div>' +
-        '<div style="font-size:16px;font-weight:600;color:#f1f5f9">保存成功</div>' +
-        '<div style="font-size:12px;color:#94a3b8;margin-top:4px">音频文件未发现缺失</div>' +
+        '<div style="font-size:16px;font-weight:600;color:#17345f">保存成功</div>' +
+        '<div style="font-size:12px;color:#69778d;margin-top:4px">音频文件未发现缺失</div>' +
         '</div></div>';
       $("lineEditorSidebar").appendChild(popup);
       setTimeout(function () { popup.remove(); }, 2000);
@@ -1363,7 +1402,7 @@
     if (!m) { container.innerHTML = '<div class="ed-empty">未加载线路</div>'; return; }
 
     var fileName = (LE.state.currentLineRelPath || "").split("/").pop().replace(/\.ini$/i, "");
-    var helpIcon = ' <span class="ed-help-icon" title="';
+    var helpIcon = ' <span class="ed-help-icon" data-tip="';
     var helpClose = '">?</span>';
 
     var html = "";
@@ -1984,8 +2023,8 @@
     overlay.className = "ed-modal-overlay";
     overlay.innerHTML = '<div class="ed-modal" style="width:480px">' +
       '<div class="ed-modal-header"><h3>' + title + '识别结果</h3><button class="ed-modal-close">x</button></div>' +
-      '<div class="ed-modal-body"><p style="color:#94a3b8;font-size:12px;margin-bottom:4px">以下是识别站名结果，每行一个站。您可以二次编辑，或者确认导入。</p>' +
-      '<a href="#" id="edRecAppendZhan" style="color:#60a5fa;font-size:12px">在所有站后面加个"站"字</a>' +
+      '<div class="ed-modal-body"><p style="color:#69778d;font-size:12px;margin-bottom:4px">以下是识别站名结果，每行一个站。您可以二次编辑，或者确认导入。</p>' +
+      '<a href="#" id="edRecAppendZhan" style="color:#1468df;font-size:12px">在所有站后面加个"站"字</a>' +
       '<textarea id="edRecModalText" class="ed-form-textarea" style="min-height:200px;font-family:monospace;margin-top:6px">' +
       LE.escHtml(results.join("\n")) + '</textarea></div>' +
       '<div class="ed-modal-footer">' +
@@ -2061,7 +2100,7 @@
 
     groups.forEach(function (group, gi) {
       html += '<div style="margin-bottom:16px">';
-      html += '<h4 style="font-size:13px;color:#94a3b8;margin:0 0 6px">' + group.title + '</h4>';
+      html += '<h4 style="font-size:13px;color:#69778d;margin:0 0 6px">' + group.title + '</h4>';
       group.fields.forEach(function (field) {
         if (field.hideIfSame && m.isUpDownSame) return;
         var label = m.isUpDownSame ? field.label.replace("下行", "").replace("上行", "") : field.label;
@@ -2082,7 +2121,7 @@
     });
 
     {
-      html += '<div style="padding-top:8px;border-top:1px solid #1e293b">';
+      html += '<div style="padding-top:8px;border-top:1px solid #e5edf6">';
       html += '<button class="ed-btn ed-btn-ghost" id="edApplyAllTemplates">应用本页所有全局规则到其他线路</button>';
       html += '</div>';
     }
@@ -2216,7 +2255,7 @@
     html += '</div>';
 
     function buildDirSection(dirLabel, stops, overrides, dir) {
-      var h = '<div style="margin-bottom:12px"><h4 style="font-size:13px;color:#e2e8f0;margin:0 0 8px">' + dirLabel + '站点</h4>';
+      var h = '<div style="margin-bottom:12px"><h4 style="font-size:13px;color:#20355c;margin:0 0 8px">' + dirLabel + '站点</h4>';
       stops.forEach(function (stn, idx) {
         var i = idx + 1;
         var ov = (overrides && overrides[i]) ? overrides[i] : {};
@@ -2386,7 +2425,7 @@
 
     for (var i = 0; i < 10; i++) {
       var tip = tips[i] || { name: "", ruleTokens: [] };
-      html += '<div class="ed-form-group" style="padding:8px;background:#111827;border-radius:8px;border:1px solid #1e293b">';
+      html += '<div class="ed-form-group" style="padding:8px;background:#f7f9fc;border-radius:8px;border:1px solid #e5edf6">';
       html += '<label class="ed-form-label">提示语 ' + (i + 1) + '</label>';
       html += '<input class="ed-form-input" id="edTipName_' + i + '" value="' + LE.escHtml(tip.name) +
         '" placeholder="服务语标题，如"让座"，不填写则默认显示服务语X" style="margin-bottom:6px" ' + ' maxlength="20">';
@@ -2470,11 +2509,11 @@
     overlay.innerHTML = '<div class="ed-modal" style="width:500px">' +
       '<div class="ed-modal-header"><h3>应用到其他线路</h3><button class="ed-modal-close">x</button></div>' +
       '<div class="ed-modal-body">' +
-      '<div style="margin-bottom:10px"><strong>目标公司：</strong> <select id="edApplyCompany" style="padding:6px 8px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0">' + companyOpts + '</select></div>' +
+      '<div style="margin-bottom:10px"><strong>目标公司：</strong> <select id="edApplyCompany" style="padding:6px 8px;background:#ffffff;border:1px solid #d8e3f1;border-radius:4px;color:#20355c">' + companyOpts + '</select></div>' +
       '<div style="margin-bottom:6px;font-size:11px">' +
-      '<a href="#" id="edApplySelAll" style="color:#60a5fa">全选</a> &nbsp;' +
-      '<a href="#" id="edApplySelNone" style="color:#60a5fa">全不选</a> &nbsp;' +
-      '<a href="#" id="edApplyInvert" style="color:#60a5fa">反选</a></div>' +
+      '<a href="#" id="edApplySelAll" style="color:#1468df">全选</a> &nbsp;' +
+      '<a href="#" id="edApplySelNone" style="color:#1468df">全不选</a> &nbsp;' +
+      '<a href="#" id="edApplyInvert" style="color:#1468df">反选</a></div>' +
       '<div id="edApplyLineList" style="max-height:220px;overflow-y:auto;margin-bottom:10px"><div class="ed-empty">加载中...</div></div>' +
       '<div style="margin-top:10px"><strong>应用策略：</strong></div>' +
       '<div style="display:flex;gap:16px;margin-top:4px">' +
@@ -2560,11 +2599,11 @@
     overlay.innerHTML = '<div class="ed-modal" style="width:540px">' +
       '<div class="ed-modal-header"><h3>' + title + '</h3><button class="ed-modal-close">x</button></div>' +
       '<div class="ed-modal-body">' +
-      (mode === "move" ? '<div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px 12px;margin-bottom:12px;color:#94a3b8;font-size:12px">如果您要调整线路排序，请按住线路卡片的"≡"拖拽即可。</div>' : '') +
-      '<div style="margin-bottom:8px"><strong>目标公司：</strong> <select id="cmCompany" style="padding:6px 8px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0">' + companyOpts + '</select></div>' +
-      '<div style="margin-bottom:4px;font-size:12px;color:#94a3b8">此公司下的线路：</div>' +
+      (mode === "move" ? '<div style="background:#e5edf6;border:1px solid #d8e3f1;border-radius:6px;padding:10px 12px;margin-bottom:12px;color:#69778d;font-size:12px">如果您要调整线路排序，请按住线路卡片的"≡"拖拽即可。</div>' : '') +
+      '<div style="margin-bottom:8px"><strong>目标公司：</strong> <select id="cmCompany" style="padding:6px 8px;background:#ffffff;border:1px solid #d8e3f1;border-radius:4px;color:#20355c">' + companyOpts + '</select></div>' +
+      '<div style="margin-bottom:4px;font-size:12px;color:#69778d">此公司下的线路：</div>' +
       '<div id="cmLineList" style="max-height:160px;overflow-y:auto;margin-bottom:10px"><div class="ed-empty">加载中...</div></div>' +
-      '<div style="margin-bottom:8px"><strong>新名称：</strong> <input id="cmNewName" style="width:100%;padding:8px 10px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#f1f5f9;font-size:13px;box-sizing:border-box" value="' + LE.escHtml(defaultNewName) + '"></div>' +
+      '<div style="margin-bottom:8px"><strong>新名称：</strong> <input id="cmNewName" style="width:100%;padding:8px 10px;background:#ffffff;border:1px solid #d8e3f1;border-radius:4px;color:#17345f;font-size:13px;box-sizing:border-box" value="' + LE.escHtml(defaultNewName) + '"></div>' +
       '</div>' +
       '<div class="ed-modal-footer">' +
       '<button class="ed-btn ed-btn-ghost" id="cmCancel">取消</button>' +
@@ -2785,14 +2824,14 @@
 
     var linesHtml = "";
     lines.forEach(function (l) {
-      var marker = l.exists ? ' <span style="color:#eab308">(冲突)</span>' : ' <span style="color:#60a5fa">(新)</span>';
+      var marker = l.exists ? ' <span style="color:#eab308">(冲突)</span>' : ' <span style="color:#1468df">(新)</span>';
       linesHtml += '<tr><td>' + LE.escHtml(l.name) + marker + '</td></tr>';
     });
 
     var companyOptsHtml = "";
     if (allowPickCompany || isCompanyImport) {
       var companies = (LE.mainState && LE.mainState.newIndex && LE.mainState.newIndex.companies || []).map(function (c) { return c.name; });
-      companyOptsHtml = '<div style="margin-bottom:8px"><strong>导入到公司：</strong> <select id="edImpTargetCompany" style="padding:6px 8px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0">' +
+      companyOptsHtml = '<div style="margin-bottom:8px"><strong>导入到公司：</strong> <select id="edImpTargetCompany" style="padding:6px 8px;background:#ffffff;border:1px solid #d8e3f1;border-radius:4px;color:#20355c">' +
         '<option value="__new__">+ 新建公司（从导入包创建）</option>';
       companies.forEach(function (c) {
         var sel = c === defaultCompany ? " selected" : "";
@@ -2810,7 +2849,7 @@
       '<div class="ed-modal-header"><h3>导入预览</h3><button class="ed-modal-close">x</button></div>' +
       '<div class="ed-modal-body">' +
       companyOptsHtml +
-      '<p style="margin:0 0 8px;color:#e2e8f0">' + msg + '</p>' +
+      '<p style="margin:0 0 8px;color:#20355c">' + msg + '</p>' +
       '<div style="max-height:180px;overflow-y:auto;margin-bottom:8px"><table class="ed-apply-table"><thead><tr><th>线路名称</th></tr></thead><tbody>' + linesHtml + '</tbody></table></div>' +
       (hasConflicts ? '<div style="margin-top:8px"><strong>冲突处理：</strong></div><div style="display:flex;gap:16px;margin-top:4px">' +
         '<label class="ed-radio"><input type="radio" name="edImpConflict" value="skip" checked> 跳过</label>' +
@@ -2998,9 +3037,9 @@
           html += '<tr data-row-file="' + LE.escHtml(item.name) + '">' +
             '<td><input type="checkbox" class="ed-media-check" data-file="' + LE.escHtml(item.name) + '"></td>' +
             '<td>' + LE.escHtml(item.name) + '</td>' +
-            '<td style="font-size:11px;color:#94a3b8">' + sizeStr + '</td>' +
-            '<td style="font-size:11px;color:#94a3b8">' + ext.toUpperCase() + '</td>' +
-            '<td style="font-size:11px;color:#94a3b8">' + mtimeStr + '</td>' +
+            '<td style="font-size:11px;color:#69778d">' + sizeStr + '</td>' +
+            '<td style="font-size:11px;color:#69778d">' + ext.toUpperCase() + '</td>' +
+            '<td style="font-size:11px;color:#69778d">' + mtimeStr + '</td>' +
             '<td class="ed-media-actions">' +
               '<span class="ed-media-copy" data-file="' + LE.escHtml(item.name) + '">复制</span>' +
               '<span class="ed-media-move" data-file="' + LE.escHtml(item.name) + '">移动</span>' +
@@ -3177,9 +3216,9 @@
     overlay.innerHTML = '<div class="ed-modal" style="width:450px">' +
       '<div class="ed-modal-header"><h3>' + title + '</h3><button class="ed-modal-close">x</button></div>' +
       '<div class="ed-modal-body">' +
-      '<p style="margin:0 0 8px;color:#94a3b8;font-size:12px">' + LE.escHtml(paths[0].split("/").pop()) + (paths.length > 1 ? ' 等' + paths.length + '个文件' : '') + '</p>' +
+      '<p style="margin:0 0 8px;color:#69778d;font-size:12px">' + LE.escHtml(paths[0].split("/").pop()) + (paths.length > 1 ? ' 等' + paths.length + '个文件' : '') + '</p>' +
       '<div style="margin-bottom:8px"><strong>目标公司：</strong></div>' +
-      '<select id="edCmTargetCompany" style="width:100%;padding:8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:13px">' + companyOpts + '</select>' +
+      '<select id="edCmTargetCompany" style="width:100%;padding:8px;background:#ffffff;border:1px solid #d8e3f1;border-radius:6px;color:#20355c;font-size:13px">' + companyOpts + '</select>' +
       '</div>' +
       '<div class="ed-modal-footer">' +
       '<button class="ed-btn ed-btn-ghost" id="edCmCancel">取消</button>' +

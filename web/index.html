@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>档案库报站器 内测版</title>
-  <link rel="stylesheet" href="./style.css?v=20260814" />
-  <link rel="stylesheet" href="./editor.css?v=20260814" />
-  <link rel="stylesheet" href="./ui-redesign.css?v=20260814" />
+  <link rel="stylesheet" href="./style.css?v=20260820" />
+  <link rel="stylesheet" href="./editor.css?v=20260820" />
+  <link rel="stylesheet" href="./ui-redesign.css?v=20260820" />
 </head>
 <body>
   <svg class="icon-defs" aria-hidden="true" focusable="false">
@@ -26,13 +26,12 @@
   <main class="app" id="appRoot">
     <aside class="brand-rail">
       <nav class="rail-nav" aria-label="主目录">
-        <button type="button" id="playerNavBtn" class="rail-nav-item active"><svg class="ui-icon"><use href="#icon-broadcast"></use></svg><span>报站</span></button>
         <button type="button" id="lineEditorToggle" class="rail-nav-item"><i aria-hidden="true">✎</i><span>编辑器</span></button>
         <button type="button" id="aboutNavBtn" class="rail-nav-item"><i aria-hidden="true">⚙</i><span>设置</span></button>
         <button type="button" id="devPanelToggle" class="rail-nav-item dev-nav-item"><i aria-hidden="true">🔨</i><span>开发者模式</span></button>
       </nav>
       <footer class="rail-footer">
-        <small>V1.6 Build 227<br>交通档案库版权所有</small>
+        <small>V1.6 Build 237<br>交通档案库版权所有</small>
         <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" class="rail-social rail-social-bilibili" aria-label="交通档案库 Bilibili 主页"><img id="bilibiliIcon" src="" alt=""><span>BILIBILI 主页</span></a>
         <a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener" class="rail-social rail-social-gitee"><img id="giteeIcon" src="" alt=""><span>Gitee 主页</span></a>
         <a href="https://github.com/R-J-Hu/TABBSS/" target="_blank" rel="noopener" class="rail-social rail-social-github"><img id="githubIcon" src="" alt=""><span>Github 主页</span></a>
@@ -47,14 +46,9 @@
           <label id="companyRouteWrap" class="topbar-select-label"><span>公司</span><select id="companyRouteSelect"></select></label>
           <label class="topbar-select-label line-select"><span>线路</span><select id="routeSelect"></select></label>
         </div>
-        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 227 2026-08-14 00:45:19</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
+        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 237 2026-08-20 00:59:00</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
       </header>
       <p id="editionWarning" class="edition-warning"></p>
-      <div class="update-banner" id="updateBanner" style="display:none">
-        <span class="update-banner-text" id="updateBannerText"></span>
-        <button class="update-banner-btn" id="updateBannerBtn">下载更新</button>
-        <button class="update-banner-close" id="updateBannerClose" aria-label="关闭更新提示">&times;</button>
-      </div>
 
       <section class="status-card">
         <div class="status-summary">
@@ -65,7 +59,7 @@
           <div class="runtime-controls" hidden><span id="stopNumberDisplay">1</span><span id="stopTotalDisplay">0</span><select id="stationJumpSelect" aria-label="跳站（到站态）"></select></div>
         </div>
         <div class="route-visual">
-          <div class="route-title"><strong><span id="lineExternalDisplay" aria-live="polite">—</span><small id="routeDestinationEnDisplay"></small></strong><span class="route-direction"><select id="directionSelect"><option value="up">上行</option><option value="down">下行</option></select><button type="button" id="flipDirBtn" class="direction-btn"><span aria-hidden="true">↔</span><span>切换上下行</span><span class="kbd">F7</span></button></span></div>
+          <div class="route-title"><strong><span class="route-badge" id="lineExternalDisplay" aria-live="polite">—</span><span class="route-term-cn" id="routeTermCnDisplay"></span><small id="routeDestinationEnDisplay"></small></strong><span class="route-direction"><select id="directionSelect"><option value="up">上行</option><option value="down">下行</option></select><button type="button" id="flipDirBtn" class="direction-btn"><span aria-hidden="true">↔</span><span>切换上下行</span><span class="kbd">F7</span></button></span></div>
           <div class="route-map-scroll" id="routeMapScroll"><div id="routeMap"></div></div>
           <p class="route-help">点击站点可跳转（到站态）</p>
           <button id="switchToEditorLineBtn" class="quiet-btn switch-editor-line" style="display:none">切换到当前正在编辑的线路</button>
@@ -124,7 +118,17 @@
 （Build 224 2026-08-13）基于 1440×900 主工程/独立原型实页截图与 DOM 几何对比修正顶栏：公司选择器恢复 grid、全部选择器固定 42px 垂直居中，并切换为透明底白色 Logo 加密资源。
 （Build 225 2026-08-13）完善双语站名两行截断与固定行区、控制模块等高、INI 文件名显示、下一站/开发者图标、右侧视口固定侧栏、未来站蓝色圆点及三平台品牌按钮。
 （Build 226 2026-08-14）顶栏提升为全宽最高层，右栏加宽并置于顶栏下方；编辑器、设置和开发者模式统一从右侧栏左侧展开，四个导航入口及面板关闭键采用单面板互斥状态。
-（Build 227 2026-08-14）顶栏组件整体缩小 15%，线路下拉改为 index.json 显示名并限制为公司选框宽度的 1.5 倍；模块标题去粗，右侧栏改为浅灰蓝主题且保留三个平台按钮品牌色，侧面板改为无动画即时切换。</p>
+（Build 227 2026-08-14）顶栏组件整体缩小 15%，线路下拉改为 index.json 显示名并限制为公司选框宽度的 1.5 倍；模块标题去粗，右侧栏改为浅灰蓝主题且保留三个平台按钮品牌色，侧面板改为无动画即时切换。
+（Build 228 2026-08-16）补全自动检查更新：启动时从 Gitee 检查对应渠道(release/dev/audit)+系统(windows/macos)的新 release，版本号优先、build 为辅比较，汇总当前版本到最新版本之间的 changelog 一起展示；更新按钮下载安装程序并 launch 升级。更新时线路合并：升级安装将新包线路数据抽取到暂存目录，应用启动时按「公司→线路」取并集合并（新增线路、保留现有同名线路不覆盖）。
+（Build 229 2026-08-16）测试构建：验证自动更新与线路合并升级链路（无功能改动）。
+（Build 230 2026-08-16）修复打包缺失 _cffi_backend 导致启动崩溃：tabbss.spec 补齐 pythonnet/clr/cffi 及 _cffi_backend 原生扩展打包。
+（Build 231 2026-08-16）修复「升级」按钮在打包版不生效：_api_update 原用 sys.executable 启动 updater.py，打包版里 sys.executable 是 exe 本身会启动第二个应用实例；改为后台线程直接下载并 launch 安装程序。退出时干净关闭 HTTP 服务器。
+（Build 232 2026-08-16）测试构建：验证 231→232 自动升级链路（无功能改动）。
+（Build 233 2026-08-16）升级流程修正：下载完安装程序后以 detached 方式启动 setup 并自动关闭本程序，避免 NSIS 弹「正在运行」提示；前端提示改为「下载中，完成后自动升级并退出」。
+（Build 234 2026-08-16）修复升级安装程序无法启动：NSIS 安装包带 requireAdministrator 清单，subprocess.Popen（CreateProcess）报 WinError 740 而非弹 UAC；改用 os.startfile（ShellExecute）触发 UAC。
+（Build 235 2026-08-16）测试构建：验证 234→235 自动升级完整链路（无功能改动）。
+（Build 236 2026-08-17）修复升级安装程序无法启动：完整应用里 in-process os.startfile 在 .NET 运行时（webview）加载后报 WinError 1223；改用独立 cmd.exe 进程的 start（ShellExecute）启动安装程序，正确触发 UAC 且立即返回。
+（Build 237 2026-08-19）升级启动方案定稿（234/235 实测通过）：Windows 用 os.startfile（ShellExecute 触发 UAC），macOS 用 open，Linux 用 xdg-open，跨平台按平台分支。升级提示改为居中模态弹窗（配色对齐设置/关于侧栏），展示版本+changelog 分组。编辑器及所有子窗体改为浅色主题（配色与 Player、设置侧栏一致），INI 语法高亮与高级文本编辑器同步浅色化。开发者模式新增「模拟升级」按钮：获取 Gitee 最新 build（即使不比当前版本高）触发升级流程，版本不比当前高时 changelog 只显示该版本。修复 style.css 中 @keyframes headingBreath 未闭合花括号导致后续 CSS 规则（含升级弹窗 fixed 定位）失效；修复编辑器音频选择器弹窗被默认模板遮罩盖住不可见（z-index 50→9999）；升级检查双源 fallback（Gitee 优先，失败切 GitHub）；下载安装程序时弹窗内显示进度条+百分比+已下载/总大小+实时速度。开发者模式侧面板大小/标题/框架对齐设置（关于）面板（宽度 420px、深色标题、svg 关闭钮、同款阴影）；编辑器侧栏阴影对齐设置面板；侧边栏移除「报站」按钮（有侧面板显示侧面板、关闭即回 Player，侧边栏按钮再次点击关闭对应面板）；车站信息「双向模式/环线模式」选中文字改白色；编辑器问号 hover 提示改为可见 CSS tooltip；新建线路默认版本 V1.0；顶栏「线路」选框与编辑器「编辑当前线路」改为显示 index.json 注册文件名（而非 INI 内部短名）；Player 终点站英文左缘与终点站中文恒定对齐；关于页改为全称「交通档案库报站模拟器」+顶栏同款 Logo，版本合并为 V1.6 (Build 237) 并提供【检查更新】按钮，新增作者与 Bilibili/Gitee/Github 主页链接，移除运行方式；海峡导入弹窗格式对齐检查更新弹窗；editor L0 新增「从其他报站器导入线路」下拉（含海峡兼容与蓝斯「即将完工」入口）；修复 ui-redesign.css 损坏行；修复线路号→终点站网格 column-gap 过大导致「4 → 会展中心站」中英文间距被拉大（6px→4px，英文仍与中文左缘对齐）；修复线路图站点标签中英文间距：b/small 不再按固定高度预留两行（中文一行时英文空距 17.7px），改为 max-height+align-content:start，英文紧贴中文（1.9px）、超长站名仍 2 行截断；播放队列显示名优化：站名通配匹配（如 *.wav 规则）找到真实音频后显示实际文件名，无匹配保留规则文本，本站/下站等参数匹配前置蓝色 tag；修复右侧 rail 区域莫名阴影（关闭的 fileSidebar/devPanelSidebar 在视口右缘外仍向左渲染阴影，关闭状态下面板 box-shadow:none，打开面板左侧阴影保留）。</p>
 
       <section class="debug-panel" id="debugPanel">
       <h2>Dev 调试信息</h2>
@@ -133,8 +137,36 @@
     </div>
   </main>
 
+  <div class="update-modal-overlay" id="updateModalOverlay" style="display:none">
+    <div class="update-modal" role="dialog" aria-modal="true" aria-labelledby="updateModalTitle">
+      <div class="update-modal-head">
+        <div>
+          <span class="eyebrow">UPDATE</span>
+          <h2 id="updateModalTitle">发现新版本</h2>
+        </div>
+        <button type="button" id="updateModalClose" class="update-modal-close" aria-label="关闭更新提示"><svg class="ui-icon"><use href="#icon-close"></use></svg></button>
+      </div>
+      <div class="update-modal-body">
+        <p class="update-modal-version" id="updateModalVersion"></p>
+        <div class="update-modal-changelog" id="updateModalChangelog"></div>
+        <div class="update-dl" id="updateDl" style="display:none">
+          <div class="update-dl-track"><div class="update-dl-bar" id="updateDlBar"></div></div>
+          <div class="update-dl-meta">
+            <span id="updateDlPct">0%</span>
+            <span id="updateDlSize">0 / 0 MB</span>
+            <span id="updateDlSpeed"></span>
+          </div>
+        </div>
+      </div>
+      <div class="update-modal-footer">
+        <button type="button" id="updateModalCancel" class="update-modal-btn update-modal-btn-ghost">暂不升级</button>
+        <button type="button" id="updateBannerBtn" class="update-modal-btn update-modal-btn-primary">下载并升级</button>
+      </div>
+    </div>
+  </div>
+
   <aside id="devPanelSidebar" class="dev-panel-sidebar">
-    <div class="dev-panel-head"><h2>开发者功能</h2><button type="button" id="devPanelClose" aria-label="关闭开发者功能">&times;</button></div>
+    <div class="dev-panel-head"><div><span class="eyebrow">DEV</span><h2>开发者功能</h2></div><button type="button" id="devPanelClose" class="dev-panel-close" aria-label="关闭开发者功能"><svg class="ui-icon"><use href="#icon-close"></use></svg></button></div>
     <div id="devPanelBody" class="dev-panel-body"></div>
     <div class="dev-panel-footer"><button id="devPanelSave" class="ed-btn ed-btn-primary">保存</button></div>
   </aside>
@@ -174,7 +206,13 @@
         <div class="ed-page-actions">
           <button id="edAddCompanyBtn" class="ed-btn"><svg class="ui-icon"><use href="#icon-plus"></use></svg><span>添加公司</span></button>
           <button id="edL0ImportBtn" class="ed-btn ed-btn-ghost"><svg class="ui-icon"><use href="#icon-upload"></use></svg><span>导入线路文件</span></button>
-          <a id="edL0HaixiaLink" class="ed-haixia-link">导入海峡报站器线路（兼容模式）</a>
+          <div class="ed-dropdown" id="edL0ImportOtherDropdown">
+            <button id="edL0ImportOtherBtn" class="ed-btn ed-btn-ghost"><span>从其他报站器导入线路</span><span class="ed-chevron">⌄</span></button>
+            <div class="ed-dropdown-menu" id="edL0ImportOtherMenu">
+              <button data-action="haixia">导入海峡报站器线路（兼容模式）</button>
+              <button data-action="lanshi">导入蓝斯报站器线路</button>
+            </div>
+          </div>
         </div>
       </div>
       <!-- L1: Line List -->
@@ -217,20 +255,26 @@
     </div>
   </aside>
 
-  <aside class="about-panel" id="aboutPanel" aria-label="关于档案库报站模拟器" hidden>
-    <div class="about-panel-head"><div><span class="eyebrow">ABOUT</span><h2>关于档案库报站模拟器</h2></div><button type="button" id="aboutCloseBtn" class="about-close" aria-label="关闭关于"><svg class="ui-icon"><use href="#icon-close"></use></svg></button></div>
+  <aside class="about-panel" id="aboutPanel" aria-label="关于交通档案库报站模拟器" hidden>
+    <div class="about-panel-head"><div><span class="eyebrow">ABOUT</span><h2>关于交通档案库报站模拟器</h2></div><button type="button" id="aboutCloseBtn" class="about-close" aria-label="关闭关于"><svg class="ui-icon"><use href="#icon-close"></use></svg></button></div>
     <div class="about-panel-body">
-      <div class="about-mark"><svg class="ui-icon"><use href="#icon-broadcast"></use></svg></div>
-      <h3>档案库报站器</h3>
+      <div class="about-mark"><img id="aboutLogoImage" src="" alt="交通档案库报站模拟器"></div>
+      <h3>交通档案库报站模拟器</h3>
       <p>面向公交报站线路文件的本地管理、编辑与播放模拟工具。</p>
-      <dl><div><dt>版本</dt><dd>V1.6</dd></div><div><dt>当前构建</dt><dd>Build 227</dd></div><div><dt>运行方式</dt><dd>本地桌面应用</dd></div></dl>
+      <dl>
+        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6 (Build 237)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
+        <div><dt>作者</dt><dd>@爱困的RJ（R.J. Hu）</dd></div>
+        <div><dt>Bilibili 主页</dt><dd><a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener">点击前往</a></dd></div>
+        <div><dt>Gitee 主页</dt><dd><a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener">点击前往</a></dd></div>
+        <div><dt>Github 主页</dt><dd><a href="https://github.com/R-J-Hu/TABBSS/" target="_blank" rel="noopener">点击前往</a></dd></div>
+      </dl>
     </div>
   </aside>
 
-  <script src="./editor-core.js?v=20260814"></script>
-  <script src="./editor-components.js?v=20260814"></script>
-  <script src="./main.js?v=20260814"></script>
-  <script src="./editor-ui.js?v=20260814"></script>
-  <script src="./panel-controller.js?v=20260814"></script>
+  <script src="./editor-core.js?v=20260820"></script>
+  <script src="./editor-components.js?v=20260820"></script>
+  <script src="./main.js?v=20260820"></script>
+  <script src="./editor-ui.js?v=20260820"></script>
+  <script src="./panel-controller.js?v=20260820"></script>
 </body>
 </html>

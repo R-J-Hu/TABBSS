@@ -11,7 +11,9 @@ On macOS it produces TABBSS.app.
 """
 
 import sys
+import importlib.util
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs
 
 # ── 需要打包的数据文件 ──────────────────────────────────────────
 _here = Path('.').resolve()
@@ -39,13 +41,32 @@ hiddenimports = [
     'argparse',
     'posixpath',
     'urllib.parse',
+    # pywebview Windows edgechromium 后端依赖 pythonnet(clr) + cffi
+    # （后端由 webview 动态加载，PyInstaller 静态分析追踪不到 → 运行时缺 _cffi_backend 崩溃）
+    'clr',
+    'clr_loader',
+    'pythonnet',
+    '_cffi_backend',
 ]
+
+# 收集 pythonnet / clr_loader / cffi 的原生库与子模块
+binaries = []
+for _pkg in ('clr_loader', 'pythonnet', 'cffi'):
+    _d, _b, _h = collect_all(_pkg)
+    binaries += _b
+    hiddenimports += _h
+
+# _cffi_backend 是顶层 C 扩展（.pyd），collect_dynamic_libs 对非 package 无效，
+# 需显式定位其文件路径并作为 binary 打入 bundle（否则运行时 import _cffi_backend 崩溃）
+_cffi_spec = importlib.util.find_spec('_cffi_backend')
+if _cffi_spec and _cffi_spec.origin:
+    binaries.append((_cffi_spec.origin, '.'))
 
 # ── Analysis ───────────────────────────────────────────────────
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

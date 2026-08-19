@@ -406,7 +406,7 @@ window.LineEditor = (function () {
     for (var i = 0; i < stationCount; i++) { upCn.push(""); upEn.push(""); }
     var m = {
       lineName: lineName || "新线路",
-      version: "V1.51",
+      version: "V1.0",   // Build 237+: new lines default to V1.0
       author: "",
       createdAt: "",
       updatedAt: "",

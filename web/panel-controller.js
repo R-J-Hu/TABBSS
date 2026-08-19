@@ -1,7 +1,6 @@
 (function () {
   var appRoot = document.getElementById("appRoot");
   var ids = {
-    player: "playerNavBtn",
     editor: "lineEditorToggle",
     settings: "aboutNavBtn",
     developer: "devPanelToggle"
@@ -28,6 +27,12 @@
     if (window.LineEditor && typeof window.LineEditor._updateSwitchBtn === "function") window.LineEditor._updateSwitchBtn();
   }
   function openPanel(key) {
+    // Clicking the active panel's nav button closes it (back to the player).
+    if (activePanel() === key) {
+      closeAll();
+      setActive(activePanel());
+      return;
+    }
     closeAll();
     if (key === "editor") {
       var editor = el("lineEditorSidebar");

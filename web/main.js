@@ -1,3 +1,7 @@
+window.TABBSS_JS_VER = "237j"; // cache-debug marker for dev panel
+window.TABBSS_VERSION = "1.6";  // from VERSION
+window.TABBSS_BUILD = "237";    // must match index.html build badge
+
 // ── Global error surface (Release builds have no console) ──
 window.addEventListener("error", function (ev) {
   var msg = "[JS Error] " + (ev.message || ev.error || "unknown") + " @ " + (ev.filename || "?") + ":" + (ev.lineno || "?");
@@ -216,7 +220,28 @@ function renderDevToggles() {
     var checked = state.funct[item.key] ? " checked" : "";
     html += '<label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;font-size:14px;color:#374151;cursor:pointer"><input type="checkbox" data-key="' + item.key + '"' + checked + ' style="accent-color:#3b82f6;width:18px;height:18px;flex-shrink:0"> ' + item.label + '</label>';
   });
+  html += '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #e5e7eb">'
+    + '<button type="button" id="devSimulateUpdateBtn" style="width:100%;padding:10px 0;border-radius:8px;border:1px solid #dfe7f2;background:#f5f8fc;color:#1769d8;font-size:14px;font-weight:600;cursor:pointer">模拟升级</button>'
+    + '<p id="devSimulateStatus" style="margin:8px 0 0;font-size:12px;color:#69778d">获取 Gitee 最新 build，即使不比当前版本高也触发升级流程。</p>'
+    + '<p style="margin:10px 0 0;font-size:11px;color:#9aa4b3">JS ' + (window.TABBSS_JS_VER || "?") + '</p>'
+    + '</div>';
   body.innerHTML = html;
+  var simBtn = document.getElementById("devSimulateUpdateBtn");
+  if (simBtn) {
+    simBtn.onclick = function () {
+      var status = document.getElementById("devSimulateStatus");
+      simBtn.textContent = "检查中...";
+      simBtn.disabled = true;
+      if (status) status.textContent = "正在获取 Gitee 最新 build...";
+      checkForUpdates(true).then(function () {
+        setTimeout(function () {
+          simBtn.textContent = "模拟升级";
+          simBtn.disabled = false;
+          if (status) status.textContent = "检查完成，请在弹窗中查看结果。";
+        }, 800);
+      });
+    };
+  }
 }
 
 async function callLocalApi(path, payload) {
@@ -657,8 +682,9 @@ function syncRouteOptionsByCompany() {
   lines.forEach((line) => {
     const op = document.createElement("option");
     op.value = line.file;
-    // 顶栏始终展示 index.json 定义的线路显示名；文件名仅作为加载值。
-    op.textContent = line.name;
+    // 顶栏展示 index.json 中的注册名（文件登记名，即不含路径/后缀的文件名），
+    // 避免展示 INI 内部短名（如 线路名称=4）。
+    op.textContent = basenameOf(line.file).replace(/\.ini$/i, "");
     routeSelect.appendChild(op);
   });
   if (!state.currentLineFile && lines.length) state.currentLineFile = lines[0].file;
@@ -679,6 +705,8 @@ async function loadRouteFromNewMode(relPath) {
     console.error("加载线路失败：", relPath, e.message);
     var extDisp = document.getElementById("lineExternalDisplay");
     if (extDisp) extDisp.textContent = "线路文件不存在：" + relPath;
+    var termCnEl = document.getElementById("routeTermCnDisplay");
+    if (termCnEl) termCnEl.textContent = "";
     renderRouteMap([]);
     renderTipButtons([]);
     state.route = null;
@@ -1029,6 +1057,7 @@ function toAudioEntries(parts, ctx, dirOverride) {
           urls: hit.urls,
           url: hit.url,
           displayTag: "here",
+          paramLabel: "本站中文",
           displayFile: basenameOf(hit.rel),
         });
       else entries.push({ type: "missing", label: `【本站】未匹配：${name}` });
@@ -1045,6 +1074,7 @@ function toAudioEntries(parts, ctx, dirOverride) {
           urls: hit.urls,
           url: hit.url,
           displayTag: "here",
+          paramLabel: "本站英文",
           displayFile: basenameOf(hit.rel),
         });
       else entries.push({ type: "missing", label: `【本站英文】未匹配：${enName || idx}` });
@@ -1060,6 +1090,7 @@ function toAudioEntries(parts, ctx, dirOverride) {
           urls: hit.urls,
           url: hit.url,
           displayTag: "next",
+          paramLabel: "下站中文",
           displayFile: basenameOf(hit.rel),
         });
       else entries.push({ type: "missing", label: `【下一站中文】未匹配：${name}` });
@@ -1076,6 +1107,7 @@ function toAudioEntries(parts, ctx, dirOverride) {
           urls: hit.urls,
           url: hit.url,
           displayTag: "next",
+          paramLabel: "下站英文",
           displayFile: basenameOf(hit.rel),
         });
       else entries.push({ type: "missing", label: `【下一站英文】未匹配：${enName || idx}` });
@@ -1083,25 +1115,25 @@ function toAudioEntries(parts, ctx, dirOverride) {
     }
     if (part === "【起始站中文】") {
       const hit = resolveDirectionEndpointAudio(d, "start", "zh");
-      if (hit) entries.push({ type: "file", value: hit.rel, urls: hit.urls, url: hit.url, displayTag: null, displayFile: basenameOf(hit.rel) });
+      if (hit) entries.push({ type: "file", value: hit.rel, urls: hit.urls, url: hit.url, displayTag: "here", paramLabel: "起始站中文", displayFile: basenameOf(hit.rel) });
       else entries.push({ type: "missing", label: "【起始站中文】未匹配" });
       continue;
     }
     if (part === "【起始站英文】") {
       const hit = resolveDirectionEndpointAudio(d, "start", "en");
-      if (hit) entries.push({ type: "file", value: hit.rel, urls: hit.urls, url: hit.url, displayTag: null, displayFile: basenameOf(hit.rel) });
+      if (hit) entries.push({ type: "file", value: hit.rel, urls: hit.urls, url: hit.url, displayTag: "here", paramLabel: "起始站英文", displayFile: basenameOf(hit.rel) });
       else entries.push({ type: "missing", label: "【起始站英文】未匹配" });
       continue;
     }
     if (part === "【终点站中文】") {
       const hit = resolveDirectionEndpointAudio(d, "end", "zh");
-      if (hit) entries.push({ type: "file", value: hit.rel, urls: hit.urls, url: hit.url, displayTag: null, displayFile: basenameOf(hit.rel) });
+      if (hit) entries.push({ type: "file", value: hit.rel, urls: hit.urls, url: hit.url, displayTag: "next", paramLabel: "终点站中文", displayFile: basenameOf(hit.rel) });
       else entries.push({ type: "missing", label: "【终点站中文】未匹配" });
       continue;
     }
     if (part === "【终点站英文】") {
       const hit = resolveDirectionEndpointAudio(d, "end", "en");
-      if (hit) entries.push({ type: "file", value: hit.rel, urls: hit.urls, url: hit.url, displayTag: null, displayFile: basenameOf(hit.rel) });
+      if (hit) entries.push({ type: "file", value: hit.rel, urls: hit.urls, url: hit.url, displayTag: "next", paramLabel: "终点站英文", displayFile: basenameOf(hit.rel) });
       else entries.push({ type: "missing", label: "【终点站英文】未匹配" });
       continue;
     }
@@ -1157,9 +1189,19 @@ function updateExternalDisplay() {
   const badge = state.mode === "new"
     ? (state.route?.name || selectedRouteLabel.replace(/\.ini$/i, ""))
     : (selectedRouteLabel || state.route?.name || "");
-  lineExternalDisplay.textContent = term ? `${badge} → ${term}` : badge || "—";
-  if (routeDestinationEnDisplay) {
-    routeDestinationEnDisplay.textContent = stations.length ? stationEnAtOneBased(stations.length) : "";
+  const termCnEl = document.getElementById("routeTermCnDisplay");
+  if (term) {
+    // badge stays in column 1; terminal CN + EN share column 2 so the EN
+    // left edge always aligns with the CN terminal name.
+    lineExternalDisplay.textContent = badge ? badge + " →" : "";
+    if (termCnEl) termCnEl.textContent = term;
+    if (routeDestinationEnDisplay) {
+      routeDestinationEnDisplay.textContent = stations.length ? stationEnAtOneBased(stations.length) : "";
+    }
+  } else {
+    lineExternalDisplay.textContent = badge || "—";
+    if (termCnEl) termCnEl.textContent = "";
+    if (routeDestinationEnDisplay) routeDestinationEnDisplay.textContent = "";
   }
 }
 
@@ -1463,6 +1505,13 @@ function renderQueue(queue, activeIndex = -1, completedThrough = -1) {
     const content = document.createElement("span");
     content.className = "queue-content";
     if (item.type === "file") {
+      // Parameter-matched audio (本站中文 / 下站英文 …) gets a label tag in front.
+      if (item.paramLabel) {
+        const tag = document.createElement("span");
+        tag.className = "queue-tag " + (item.displayTag === "next" ? "queue-tag-next" : "queue-tag-here");
+        tag.textContent = item.paramLabel;
+        content.appendChild(tag);
+      }
       content.appendChild(document.createTextNode(item.displayFile || item.label || basenameOf(item.value)));
     } else if (item.type === "missing") {
       content.appendChild(document.createTextNode(`${item.label || ""}（文件不存在）`));
@@ -1509,7 +1558,17 @@ async function markMissingFiles(queue) {
       continue;
     }
 
-    checked.push({ ...item, url: matchedUrl, urls: candidates });
+    // Resolve the real filename for pattern rules (e.g. `站名.*` / `E+|En+|E|En站名.*`)
+    // so the queue shows the actual matched file instead of the rule text.
+    let resolvedFile = item.displayFile;
+    try {
+      const lastSeg = String(matchedUrl).split("/").pop() || "";
+      const decoded = decodeURIComponent(lastSeg);
+      if (decoded) resolvedFile = decoded;
+    } catch {
+      /* keep displayFile */
+    }
+    checked.push({ ...item, url: matchedUrl, urls: candidates, displayFile: resolvedFile });
   }
   if (queue?.__debugMeta) checked.__debugMeta = queue.__debugMeta;
   return checked;
@@ -2264,6 +2323,7 @@ async function loadLogoImage() {
     }
   }
   await loadOne("logo_archive_white.dat", "logoImage", "image/png");
+  await loadOne("logo_archive_white.dat", "aboutLogoImage", "image/png");
   await loadOne("bilibili_icon.dat", "bilibiliIcon", "image/png");
   await loadOne("gitee_icon.dat", "giteeIcon", "image/png");
   await loadOne("github_icon.dat", "githubIcon", "image/png");
@@ -2325,46 +2385,226 @@ function _showPendingImportDialog(preview) {
   setTimeout(_tryShow, 300);
 }
 
-async function checkForUpdates() {
-  if (!state.funct.check_updates) return;
-  try {
-    var resp = await fetch("/api/check_update");
-    if (!resp.ok) return;
-    var info = await resp.json();
-    if (!info.update_available) return;
+function renderUpdateModal(info, force) {
+  var overlay = document.getElementById("updateModalOverlay");
+  var title = document.getElementById("updateModalTitle");
+  var version = document.getElementById("updateModalVersion");
+  var changelogEl = document.getElementById("updateModalChangelog");
+  var btn = document.getElementById("updateBannerBtn");
+  var close = document.getElementById("updateModalClose");
+  var cancel = document.getElementById("updateModalCancel");
+  if (!overlay || !version || !changelogEl) {
+    console.error("[update] modal elements missing:", !!overlay, !!version, !!changelogEl);
+    return;
+  }
 
-    var banner = document.getElementById("updateBanner");
-    var text = document.getElementById("updateBannerText");
-    var btn = document.getElementById("updateBannerBtn");
-    var close = document.getElementById("updateBannerClose");
-    if (!banner || !text) return;
+  var latest = (info.latest_version || "");
+  if (info.latest_build) latest += " Build " + info.latest_build;
+  var current = (info.local_version || "");
+  if (info.local_build) current += " Build " + info.local_build;
+  // Forced (simulated) upgrade: show the exact same "new version" modal as a real
+  // update, skipping only the version comparison.
+  var isNewer = force ? true : !!info.update_available;
 
-    text.textContent = "新版本 " + info.latest_version + " 可用！当前: " + info.local_version;
-    banner.style.display = "flex";
+  title.textContent = "发现新版本";
+  if (info.error) {
+    version.textContent = "检查失败: " + info.error;
+  } else {
+    version.textContent = "新版本 " + latest + "（当前 " + current + "）";
+  }
 
-    btn.onclick = async function () {
-      text.textContent = "正在下载更新...";
-      btn.disabled = true;
-      btn.textContent = "下载中...";
-      try {
-        var upResp = await fetch("/api/update", { method: "POST" });
-        var upInfo = await upResp.json();
-        if (upInfo.ok) {
-          text.textContent = "更新下载中，完成后请重启程序。";
-          btn.style.display = "none";
+  var html = "";
+  if (info.changelog && info.changelog.length) {
+    for (var i = 0; i < info.changelog.length; i++) {
+      var e = info.changelog[i];
+      html += '<div class="update-changelog-build">Build ' + escapeHtml(String(e.build)) + '</div>';
+      if (e.items && e.items.length) {
+        html += '<ul>';
+        for (var j = 0; j < e.items.length; j++) {
+          html += '<li>' + escapeHtml(e.items[j]) + '</li>';
         }
-      } catch (e) {
-        text.textContent = "下载失败: " + e.message;
+        html += '</ul>';
+      }
+    }
+  } else {
+    html = '<p style="color:#69778d">（该版本无可展示的更新日志）</p>';
+  }
+  changelogEl.innerHTML = html;
+  overlay.style.display = "flex";
+
+  if (!info.download_url) {
+    if (btn) btn.style.display = "none";
+  } else if (btn) {
+    btn.style.display = "";
+    btn.disabled = false;
+    btn.textContent = "下载并升级";
+  }
+
+  function hide() {
+    overlay.style.display = "none";
+    btn.disabled = false;
+    btn.textContent = "下载并升级";
+  }
+
+  function fmtSize(bytes) {
+    if (!bytes && bytes !== 0) return "0";
+    return (bytes / 1024 / 1024).toFixed(1) + " MB";
+  }
+
+  function startProgressPolling() {
+    var dl = document.getElementById("updateDl");
+    var bar = document.getElementById("updateDlBar");
+    var pctEl = document.getElementById("updateDlPct");
+    var sizeEl = document.getElementById("updateDlSize");
+    var speedEl = document.getElementById("updateDlSpeed");
+    if (!dl || !bar) return;
+    dl.style.display = "block";
+    var lastBytes = 0, lastTs = Date.now(), timer = null;
+
+    function tick() {
+      fetch("/api/update_progress").then(function (r) { return r.json(); }).then(function (s) {
+        if (s.done) {
+          if (timer) clearInterval(timer);
+          bar.style.width = "100%";
+          pctEl.textContent = "100%";
+          sizeEl.textContent = fmtSize(s.downloaded) + " / " + fmtSize(s.total);
+          if (s.ok) {
+            version.textContent = "下载完成，正在启动安装程序...";
+            btn.textContent = "即将退出并启动升级向导";
+          } else {
+            version.textContent = "下载失败: " + (s.error || "未知错误");
+            btn.textContent = "重试";
+            btn.disabled = false;
+          }
+          return;
+        }
+        var now = Date.now();
+        var dt = (now - lastTs) / 1000;
+        var speed = dt > 0 ? (s.downloaded - lastBytes) / dt : 0;
+        lastBytes = s.downloaded; lastTs = now;
+        var pct = s.total > 0 ? Math.round(s.downloaded * 100 / s.total) : 0;
+        bar.style.width = pct + "%";
+        pctEl.textContent = pct + "%";
+        sizeEl.textContent = fmtSize(s.downloaded) + " / " + fmtSize(s.total);
+        speedEl.textContent = (speed > 0) ? fmtSize(speed) + "/s" : "";
+      }).catch(function () {});
+    }
+    tick();
+    timer = setInterval(tick, 500);
+  }
+
+  btn.onclick = async function () {
+    btn.disabled = true;
+    btn.textContent = "下载中...";
+    version.textContent = "正在下载安装程序...";
+    try {
+      var upResp = await fetch("/api/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: info.download_url || "", installer_name: info.installer_name || "" })
+      });
+      var upInfo = await upResp.json();
+      if (upInfo.ok) {
+        startProgressPolling();
+      } else {
+        version.textContent = "启动失败: " + (upInfo.error || "");
         btn.textContent = "重试";
         btn.disabled = false;
       }
-    };
+    } catch (e) {
+      version.textContent = "下载失败: " + e.message;
+      btn.textContent = "重试";
+      btn.disabled = false;
+    }
+  };
 
-    close.onclick = function () {
-      banner.style.display = "none";
-    };
+  if (close) close.onclick = hide;
+  if (cancel) cancel.onclick = hide;
+}
+
+async function checkForUpdates(force) {
+  if (!force && !state.funct.check_updates) return;
+  try {
+    var url = "/api/check_update";
+    if (force) url += "?force=1";
+    var resp = await fetch(url);
+    if (!resp.ok) {
+      console.error("[update] HTTP " + resp.status + " from " + url);
+      if (force) renderUpdateModal({ update_available: false, error: "检查接口返回 HTTP " + resp.status }, force);
+      return;
+    }
+    var info = await resp.json();
+    if (!info.download_url) {
+      // Normal startup check: stay silent (Gitee may be rate-limited / offline).
+      // Forced (simulated) upgrade: the user asked for it, so surface the problem.
+      if (force) {
+        renderUpdateModal(Object.assign({}, info, {
+          error: info.error || "未找到对应平台的安装包",
+        }), force);
+      }
+      return;
+    }
+    renderUpdateModal(info, force);
   } catch (e) {
-    console.log("[update] check failed:", e.message);
+    console.error("[update] check failed:", e.message);
+    if (force) renderUpdateModal({ update_available: false, error: "检查失败: " + e.message }, force);
+  }
+}
+
+function showToast(msg, type) {
+  type = type || "info";
+  if (window.LineEditor && typeof window.LineEditor.toast === "function") {
+    window.LineEditor.toast(msg, type);
+    return;
+  }
+  var c = document.getElementById("edToastContainer");
+  if (!c) {
+    c = document.createElement("div");
+    c.id = "edToastContainer";
+    c.className = "ed-toast-container";
+    document.body.appendChild(c);
+  }
+  var el = document.createElement("div");
+  el.className = "ed-toast " + type;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(function () { el.remove(); }, 3000);
+}
+
+/* About-panel manual update check: modal on update, toast otherwise. */
+function manualCheckForUpdates() {
+  var btn = document.getElementById("aboutCheckUpdateBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "检查中..."; }
+  fetch("/api/check_update?force=1")
+    .then(function (resp) { return resp.json(); })
+    .then(function (info) {
+      if (info.error) {
+        showToast("检查更新失败：" + info.error, "error");
+        return;
+      }
+      if (info.update_available && info.download_url) {
+        renderUpdateModal(info, true);
+      } else {
+        showToast("当前已是最新版本", "info");
+      }
+    })
+    .catch(function (e) {
+      showToast("检查更新失败：" + e.message, "error");
+    })
+    .finally(function () {
+      if (btn) { btn.disabled = false; btn.textContent = "检查更新"; }
+    });
+}
+
+function initAboutPanel() {
+  var ver = document.getElementById("aboutVersionText");
+  if (ver) {
+    ver.textContent = "V" + (window.TABBSS_VERSION || "1.6") + " (Build " + (window.TABBSS_BUILD || "0") + ")";
+  }
+  var btn = document.getElementById("aboutCheckUpdateBtn");
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", manualCheckForUpdates);
   }
 }
 
@@ -2373,6 +2613,7 @@ loadFunctConfig().then(async function () {
   loadLogoImage();
   await switchMode("new").catch((e) => alert(e.message));
   applyFunctConfig(); // re-apply after switchMode may have overridden
+  initAboutPanel();   // about panel version text + manual update check
   checkForUpdates();   // check GitHub for updates
   checkPendingImport(); // file association double-click
 });

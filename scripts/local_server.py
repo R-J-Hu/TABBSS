@@ -42,9 +42,13 @@ class LocalHandler(SimpleHTTPRequestHandler):
         return str(full)
 
     def do_GET(self):
-        # API: check for updates
-        if self.path == "/api/check_update":
+        # API: check for updates (allow ?force=1 query)
+        if self.path.split("?", 1)[0] == "/api/check_update":
             self._api_check_update()
+            return
+        # API: download progress for the update installer
+        if self.path == "/api/update_progress":
+            self._api_update_progress()
             return
         # API: pending import (file association double-click)
         if self.path == "/api/pending_import":
@@ -1049,75 +1053,85 @@ class LocalHandler(SimpleHTTPRequestHandler):
     # ── Update API ────────────────────────────────────────────
 
     def _api_check_update(self):
-        """GET /api/check_update — compare local version vs GitHub latest release."""
+        """GET /api/check_update — check Gitee for an update matching edition + OS.
+
+        Query param ?force=1 enables "simulated upgrade": always report the newest
+        release even if it is not newer than local.
+        """
         try:
-            import urllib.request
-            version_file = self.root_dir / "VERSION"
-            local_ver = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "0.0.0"
-
-            # Parse local version
-            def _parse(v):
-                v = v.strip().lstrip("vV")
-                base, sep, build = v.partition("-build")
-                parts = [int(x) for x in base.split(".") if x.isdigit()]
-                if build.isdigit():
-                    parts.append(int(build))
-                return tuple(parts)
-
-            local_tuple = _parse(local_ver)
-
-            # Query GitHub
-            repo = "your-org/TABBSS"  # TODO: update
-            api_url = f"https://api.github.com/repos/{repo}/releases/latest"
-            req = urllib.request.Request(api_url)
-            req.add_header("Accept", "application/vnd.github+json")
-            req.add_header("User-Agent", "TABBSS/1.0")
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-
-            tag = data.get("tag_name", "")
-            latest_tuple = _parse(tag)
-
-            update_available = latest_tuple > local_tuple
-
-            # Find zip download URL
-            zip_url = None
-            for asset in data.get("assets", []):
-                if asset.get("name", "").endswith(".zip"):
-                    zip_url = asset.get("browser_download_url")
-                    break
-
-            self._send_json(200, {
-                "update_available": update_available,
-                "local_version": local_ver,
-                "latest_version": tag,
-                "release_name": data.get("name", tag),
-                "changelog": data.get("body", "")[:2000],
-                "zip_url": zip_url,
-            })
+            import urllib.parse
+            import updater
+            qs = urllib.parse.urlparse(self.path).query
+            force = "force" in [p.split("=")[0] for p in qs.split("&") if p]
+            info = updater.check_gitee_update(self.root_dir, force=force)
+            self._send_json(200, info)
         except Exception as e:
             self._send_json(200, {  # 200 even on error — don't block the UI
                 "update_available": False,
                 "error": str(e),
                 "local_version": "unknown",
+                "local_build": "0",
+                "changelog": [],
+                "download_url": "",
             })
 
+    def _api_update_progress(self):
+        """GET /api/update_progress — return the in-flight installer download progress."""
+        try:
+            import updater
+            self._send_json(200, updater.get_download_state())
+        except Exception as e:
+            self._send_json(200, {"active": False, "done": True, "error": str(e)})
+
     def _api_update(self):
-        """POST /api/update — trigger updater.py as a background subprocess."""
-        import subprocess
-        updater_path = self.root_dir / "scripts" / "updater.py"
-        if not updater_path.exists():
-            self._send_json(500, {"ok": False, "error": "updater.py not found"})
+        """POST /api/update — download the matching installer and launch it (background thread)."""
+        import tempfile
+        import threading
+        from pathlib import Path as _Path
+
+        # Read optional {url, installer_name} from request body.
+        url = ""
+        installer_name = "TABBSS-Setup.exe"
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            body = self.rfile.read(length) if length > 0 else b"{}"
+            data = json.loads(body.decode("utf-8") or "{}")
+            url = data.get("url", "")
+            installer_name = data.get("installer_name", installer_name)
+        except Exception:
+            pass
+
+        if not url:
+            try:
+                import updater
+                info = updater.check_gitee_update(self.root_dir)
+                url = info.get("download_url", "")
+                installer_name = info.get("installer_name", installer_name)
+            except Exception:
+                url = ""
+
+        if not url:
+            self._send_json(400, {"ok": False, "error": "无可用下载地址"})
             return
 
-        # Run updater in background
+        def _download_and_launch():
+            try:
+                import os as _os
+                import updater
+                dest = _Path(tempfile.gettempdir()) / installer_name
+                if updater.download_file(url, dest):
+                    updater.launch_installer(dest, detached=True)
+                    # Close the app so the NSIS installer runs without the "running app" prompt.
+                    _os._exit(0)
+            except Exception as e:
+                print(f"[update] download/launch failed: {e}")
+
+        # Run download+launch in a background thread so the request returns immediately.
+        # (Do NOT spawn `sys.executable updater.py` — in the frozen app sys.executable is
+        # the app exe itself, which would just start a second app instance.)
         try:
-            subprocess.Popen(
-                [sys.executable, str(updater_path), "--update"],
-                cwd=str(self.root_dir),
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-            )
-            self._send_json(200, {"ok": True, "status": "downloading"})
+            threading.Thread(target=_download_and_launch, daemon=True, name='tabbss-updater').start()
+            self._send_json(200, {"ok": True, "status": "launching", "installer": installer_name})
         except Exception as e:
             self._send_json(500, {"ok": False, "error": str(e)})
 

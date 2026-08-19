@@ -57,13 +57,17 @@ def _safe(s):
 
 
 # -- Start HTTP server in background thread ---------------------------
+_HTTPD = None
+
+
 def _start_server(host, port, root, data_root):
+    global _HTTPD
     scripts_dir = str(Path(root) / 'scripts')
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from local_server import create_server
-    httpd = create_server(host, port, root, data_root)
-    httpd.serve_forever()
+    _HTTPD = create_server(host, port, root, data_root)
+    _HTTPD.serve_forever()
 
 
 # -- Main entry -------------------------------------------------------
@@ -112,6 +116,18 @@ def main():
     PORT = 8940
     ROOT = str(_RES_DIR)
     DATA_ROOT = str((_APP_DIR / '报站线路文件库').resolve())
+
+    # Merge staged update lines from a previous installer upgrade (union by company→line).
+    try:
+        _scripts_dir = str(Path(_RES_DIR) / 'scripts')
+        if _scripts_dir not in sys.path:
+            sys.path.insert(0, _scripts_dir)
+        import updater
+        _merge = updater.merge_update_lines(Path(_APP_DIR), Path(DATA_ROOT))
+        if _merge.get('merged'):
+            print('Merged update lines: ' + str(_merge['merged']))
+    except Exception as e:
+        print('Merge update lines skipped: ' + str(e))
 
     # Parse --open-tabl argument for file association
     pending_tabl = None
@@ -200,6 +216,14 @@ def main():
         width=1280, height=800, min_size=(900, 600), text_select=True)
     webview.settings['ALLOW_DOWNLOADS'] = True  # enable .tabl export downloads
     webview.start()
+
+    # Clean shutdown: stop the HTTP server so the PyInstaller onefile temp dir can be removed.
+    if _HTTPD is not None:
+        try:
+            _HTTPD.shutdown()
+            _HTTPD.server_close()
+        except Exception:
+            pass
     print('Done.')
 
 
