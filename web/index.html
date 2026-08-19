@@ -31,7 +31,7 @@
         <button type="button" id="devPanelToggle" class="rail-nav-item dev-nav-item"><i aria-hidden="true">🔨</i><span>开发者模式</span></button>
       </nav>
       <footer class="rail-footer">
-        <small>V1.6 Build 237<br>交通档案库版权所有</small>
+        <small>V1.6 Build 238<br>交通档案库版权所有</small>
         <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" class="rail-social rail-social-bilibili" aria-label="交通档案库 Bilibili 主页"><img id="bilibiliIcon" src="" alt=""><span>BILIBILI 主页</span></a>
         <a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener" class="rail-social rail-social-gitee"><img id="giteeIcon" src="" alt=""><span>Gitee 主页</span></a>
         <a href="https://github.com/R-J-Hu/TABBSS/" target="_blank" rel="noopener" class="rail-social rail-social-github"><img id="githubIcon" src="" alt=""><span>Github 主页</span></a>
@@ -46,7 +46,7 @@
           <label id="companyRouteWrap" class="topbar-select-label"><span>公司</span><select id="companyRouteSelect"></select></label>
           <label class="topbar-select-label line-select"><span>线路</span><select id="routeSelect"></select></label>
         </div>
-        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 237 2026-08-20 00:59:00</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
+        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 238 2026-08-20 01:34:48</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
       </header>
       <p id="editionWarning" class="edition-warning"></p>
 
@@ -128,7 +128,8 @@
 （Build 234 2026-08-16）修复升级安装程序无法启动：NSIS 安装包带 requireAdministrator 清单，subprocess.Popen（CreateProcess）报 WinError 740 而非弹 UAC；改用 os.startfile（ShellExecute）触发 UAC。
 （Build 235 2026-08-16）测试构建：验证 234→235 自动升级完整链路（无功能改动）。
 （Build 236 2026-08-17）修复升级安装程序无法启动：完整应用里 in-process os.startfile 在 .NET 运行时（webview）加载后报 WinError 1223；改用独立 cmd.exe 进程的 start（ShellExecute）启动安装程序，正确触发 UAC 且立即返回。
-（Build 237 2026-08-19）升级启动方案定稿（234/235 实测通过）：Windows 用 os.startfile（ShellExecute 触发 UAC），macOS 用 open，Linux 用 xdg-open，跨平台按平台分支。升级提示改为居中模态弹窗（配色对齐设置/关于侧栏），展示版本+changelog 分组。编辑器及所有子窗体改为浅色主题（配色与 Player、设置侧栏一致），INI 语法高亮与高级文本编辑器同步浅色化。开发者模式新增「模拟升级」按钮：获取 Gitee 最新 build（即使不比当前版本高）触发升级流程，版本不比当前高时 changelog 只显示该版本。修复 style.css 中 @keyframes headingBreath 未闭合花括号导致后续 CSS 规则（含升级弹窗 fixed 定位）失效；修复编辑器音频选择器弹窗被默认模板遮罩盖住不可见（z-index 50→9999）；升级检查双源 fallback（Gitee 优先，失败切 GitHub）；下载安装程序时弹窗内显示进度条+百分比+已下载/总大小+实时速度。开发者模式侧面板大小/标题/框架对齐设置（关于）面板（宽度 420px、深色标题、svg 关闭钮、同款阴影）；编辑器侧栏阴影对齐设置面板；侧边栏移除「报站」按钮（有侧面板显示侧面板、关闭即回 Player，侧边栏按钮再次点击关闭对应面板）；车站信息「双向模式/环线模式」选中文字改白色；编辑器问号 hover 提示改为可见 CSS tooltip；新建线路默认版本 V1.0；顶栏「线路」选框与编辑器「编辑当前线路」改为显示 index.json 注册文件名（而非 INI 内部短名）；Player 终点站英文左缘与终点站中文恒定对齐；关于页改为全称「交通档案库报站模拟器」+顶栏同款 Logo，版本合并为 V1.6 (Build 237) 并提供【检查更新】按钮，新增作者与 Bilibili/Gitee/Github 主页链接，移除运行方式；海峡导入弹窗格式对齐检查更新弹窗；editor L0 新增「从其他报站器导入线路」下拉（含海峡兼容与蓝斯「即将完工」入口）；修复 ui-redesign.css 损坏行；修复线路号→终点站网格 column-gap 过大导致「4 → 会展中心站」中英文间距被拉大（6px→4px，英文仍与中文左缘对齐）；修复线路图站点标签中英文间距：b/small 不再按固定高度预留两行（中文一行时英文空距 17.7px），改为 max-height+align-content:start，英文紧贴中文（1.9px）、超长站名仍 2 行截断；播放队列显示名优化：站名通配匹配（如 *.wav 规则）找到真实音频后显示实际文件名，无匹配保留规则文本，本站/下站等参数匹配前置蓝色 tag；修复右侧 rail 区域莫名阴影（关闭的 fileSidebar/devPanelSidebar 在视口右缘外仍向左渲染阴影，关闭状态下面板 box-shadow:none，打开面板左侧阴影保留）。</p>
+（Build 237 2026-08-19）升级启动方案定稿（234/235 实测通过）：Windows 用 os.startfile（ShellExecute 触发 UAC），macOS 用 open，Linux 用 xdg-open，跨平台按平台分支。升级提示改为居中模态弹窗（配色对齐设置/关于侧栏），展示版本+changelog 分组。编辑器及所有子窗体改为浅色主题（配色与 Player、设置侧栏一致），INI 语法高亮与高级文本编辑器同步浅色化。开发者模式新增「模拟升级」按钮：获取 Gitee 最新 build（即使不比当前版本高）触发升级流程，版本不比当前高时 changelog 只显示该版本。修复 style.css 中 @keyframes headingBreath 未闭合花括号导致后续 CSS 规则（含升级弹窗 fixed 定位）失效；修复编辑器音频选择器弹窗被默认模板遮罩盖住不可见（z-index 50→9999）；升级检查双源 fallback（Gitee 优先，失败切 GitHub）；下载安装程序时弹窗内显示进度条+百分比+已下载/总大小+实时速度。开发者模式侧面板大小/标题/框架对齐设置（关于）面板（宽度 420px、深色标题、svg 关闭钮、同款阴影）；编辑器侧栏阴影对齐设置面板；侧边栏移除「报站」按钮（有侧面板显示侧面板、关闭即回 Player，侧边栏按钮再次点击关闭对应面板）；车站信息「双向模式/环线模式」选中文字改白色；编辑器问号 hover 提示改为可见 CSS tooltip；新建线路默认版本 V1.0；顶栏「线路」选框与编辑器「编辑当前线路」改为显示 index.json 注册文件名（而非 INI 内部短名）；Player 终点站英文左缘与终点站中文恒定对齐；关于页改为全称「交通档案库报站模拟器」+顶栏同款 Logo，版本合并为 V1.6 (Build 237) 并提供【检查更新】按钮，新增作者与 Bilibili/Gitee/Github 主页链接，移除运行方式；海峡导入弹窗格式对齐检查更新弹窗；editor L0 新增「从其他报站器导入线路」下拉（含海峡兼容与蓝斯「即将完工」入口）；修复 ui-redesign.css 损坏行；修复线路号→终点站网格 column-gap 过大导致「4 → 会展中心站」中英文间距被拉大（6px→4px，英文仍与中文左缘对齐）；修复线路图站点标签中英文间距：b/small 不再按固定高度预留两行（中文一行时英文空距 17.7px），改为 max-height+align-content:start，英文紧贴中文（1.9px）、超长站名仍 2 行截断；播放队列显示名优化：站名通配匹配（如 *.wav 规则）找到真实音频后显示实际文件名，无匹配保留规则文本，本站/下站等参数匹配前置蓝色 tag；修复右侧 rail 区域莫名阴影（关闭的 fileSidebar/devPanelSidebar 在视口右缘外仍向左渲染阴影，关闭状态下面板 box-shadow:none，打开面板左侧阴影保留）。
+（Build 238 2026-08-20）优化升级检查的 Gitee 匿名 API 调用：每次检查从 1+13 次降到 1+1 次（仅对最新匹配 release 拉附件，之前对全部 release 都拉），Gitee 匿名限流 403 时自动切 GitHub 检查并获取安装包；限流/失败结果短暂缓存 2 分钟，避免每次启动都重试加重限流。</p>
 
       <section class="debug-panel" id="debugPanel">
       <h2>Dev 调试信息</h2>
@@ -262,7 +263,7 @@
       <h3>交通档案库报站模拟器</h3>
       <p>面向公交报站线路文件的本地管理、编辑与播放模拟工具。</p>
       <dl>
-        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6 (Build 237)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
+        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6 (Build 238)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
         <div><dt>作者</dt><dd>@爱困的RJ（R.J. Hu）</dd></div>
         <div><dt>Bilibili 主页</dt><dd><a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener">点击前往</a></dd></div>
         <div><dt>Gitee 主页</dt><dd><a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener">点击前往</a></dd></div>

@@ -145,20 +145,33 @@ def fetch_github_releases():
 
 
 def fetch_releases_with_fallback():
-    """Fetch releases preferring Gitee; fall back to GitHub on any failure."""
+    """Fetch the release LIST (Gitee preferred, GitHub fallback) WITHOUT per-release
+    asset calls. Assets are fetched lazily for only the newest matching release.
+
+    Fetching attach_files for every release used to cost 1 + N anonymous API calls,
+    which quickly exhausted Gitee's per-IP anonymous rate limit (403 Rate Limit
+    Exceeded, blocked by Gitee's Baidu WAF).
+    """
     try:
         releases = fetch_gitee_releases()
         if not releases:
             raise ValueError("empty gitee releases")
-        # enrich with attach_files (may itself fail → then fall back entirely)
-        for rel in releases:
-            try:
-                rel["assets"] = fetch_gitee_attach_files(rel.get("id"))
-            except Exception:
-                rel["assets"] = rel.get("assets") or []
         return releases, "gitee"
     except Exception:
         return fetch_github_releases(), "github"
+
+
+def fetch_release_assets(release, source):
+    """Return the assets of a single release.
+
+    GitHub releases already carry inline `assets`; Gitee needs one attach_files call.
+    """
+    if source == "github":
+        return release.get("assets") or []
+    try:
+        return fetch_gitee_attach_files(release.get("id"))
+    except Exception:
+        return release.get("assets") or []
 
 
 def attach_download_url(asset: dict) -> str:
@@ -204,8 +217,11 @@ def parse_changelog_diff(text: str, from_build: str, to_build: str):
 
 # Gitee anonymous API is rate-limited; cache successful checks for 10 minutes.
 # Keyed by (edition, os_key, force, local_build) so a version bump re-checks.
+# Failed/rate-limited checks are also cached briefly so repeated startups do not
+# hammer the API (each 403 restart used to re-trigger a full check).
 _GITEE_CACHE: dict = {}
-_GITEE_TTL = 600  # seconds
+_GITEE_TTL = 600   # seconds — successful check
+_FAIL_TTL = 120    # seconds — failed / rate-limited check
 
 
 def check_gitee_update(root: Path | None = None, force: bool = False) -> dict:
@@ -267,9 +283,9 @@ def check_gitee_update(root: Path | None = None, force: bool = False) -> dict:
         result["latest_build"] = _build_from_tag(release.get("tag_name", ""))
         result["release_name"] = release.get("name", release.get("tag_name", ""))
 
-        # Assets are already populated by fetch_releases_with_fallback
-        # (Gitee: attach_files; GitHub: inline assets).
-        attach_files = release.get("assets", []) or []
+        # Fetch assets ONLY for the best release (Gitee: 1 attach_files call;
+        # GitHub: inline assets). Keeps each check at ~2 anonymous API calls.
+        attach_files = fetch_release_assets(release, source)
 
         # Match installer by edition + OS prefix; locate changelog.md.
         # In forced (simulated) mode, prefer the release-channel installer so a
@@ -310,13 +326,17 @@ def check_gitee_update(root: Path | None = None, force: bool = False) -> dict:
                 except Exception:
                     pass
 
-        # Only cache successful checks (a release was found).
+        # Cache successful checks; also briefly cache failures so a rate-limited /
+        # offline check does not hammer the API again on every startup.
         if result.get("latest_build"):
             _GITEE_CACHE[_cache_key] = (_now + _GITEE_TTL, result)
+        elif result.get("error"):
+            _GITEE_CACHE[_cache_key] = (_now + _FAIL_TTL, result)
         return result
     except Exception as e:
         result["update_available"] = False
         result["error"] = str(e)
+        _GITEE_CACHE[_cache_key] = (_now + _FAIL_TTL, result)
         return result
 
 
