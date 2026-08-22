@@ -1,6 +1,6 @@
-window.TABBSS_JS_VER = "238a"; // cache-debug marker for dev panel
+window.TABBSS_JS_VER = "239a"; // cache-debug marker for dev panel
 window.TABBSS_VERSION = "1.6";  // from VERSION
-window.TABBSS_BUILD = "238";    // must match index.html build badge
+window.TABBSS_BUILD = "239";    // must match index.html build badge
 
 // ── Global error surface (Release builds have no console) ──
 window.addEventListener("error", function (ev) {
@@ -1193,7 +1193,7 @@ function updateExternalDisplay() {
   if (term) {
     // badge stays in column 1; terminal CN + EN share column 2 so the EN
     // left edge always aligns with the CN terminal name.
-    lineExternalDisplay.textContent = badge ? badge + " →" : "";
+    lineExternalDisplay.textContent = badge ? badge + " ➜" : "";
     if (termCnEl) termCnEl.textContent = term;
     if (routeDestinationEnDisplay) {
       routeDestinationEnDisplay.textContent = stations.length ? stationEnAtOneBased(stations.length) : "";
@@ -1689,7 +1689,23 @@ function refreshTripUi(options = {}) {
   if (phaseLabel) phaseLabel.textContent = state.awaitingArrival ? "下一站 NEXT" : "到站 ARRIVING";
   if (currentStationDisplay) currentStationDisplay.textContent = name;
   if (currentStationEnDisplay) currentStationEnDisplay.textContent = english;
-  if (nextActionHint) nextActionHint.textContent = `${name}${state.awaitingArrival ? "到站" : "预报"}`;
+  if (nextActionHint) {
+    // 到站态（awaitingArrival=false）时「播报下一条」预报的是下一站；
+    // 显示下一站名而非当前站名，避免误导（如到 2 站后提示应为「3站预报」）。
+    let hintName = name;
+    if (!state.awaitingArrival) {
+      const sts = getStations();
+      const n2 = sts.length;
+      if (state.stopNumber >= n2) {
+        // 末站到站后预报会换向并播新方向第一站
+        const otherDir = state.direction === "up" ? "down" : "up";
+        hintName = (state.route?.directions?.[otherDir]?.stations || [])[1] || "";
+      } else {
+        hintName = stationAtOneBased(state.stopNumber + 1);
+      }
+    }
+    nextActionHint.textContent = `${hintName}${state.awaitingArrival ? "到站" : "预报"}`;
+  }
 
   renderRouteMap();
   requestAnimationFrame(() => {

@@ -992,6 +992,27 @@ label.ed-checkbox {
   margin: 0 4px;
 }
 
+/* ── L2 Media Tab Banner ── */
+.ed-media-banner {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: #fff7e6;
+  border: 1px solid #f5d9a0;
+  color: #7a5a1e;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ed-media-banner strong { color: #b45309; }
+.ed-media-panel-title {
+  font-size: 13px;
+  color: #20355c;
+  margin: 0 0 8px;
+}
+
 /* ── Haixia Compat Link ── */
 .ed-haixia-link {
   color: #1468df;
@@ -1108,30 +1129,30 @@ label.ed-checkbox {
 .ed-empty { padding: 24px; text-align: center; color: #8a94a6; font-size: 13px; }
 .ed-mr-auto { margin-right: auto; }
 
-/* ── Build 237: visible tooltip for the L2 help question mark ── */
-.ed-help-icon { position: relative; }
-.ed-help-icon::after {
-  content: attr(data-tip);
+/* ── Build 239: help tooltip (text + optional image), shown via JS ── */
+.ed-help-icon { position: relative; cursor: help; }
+.ed-help-tooltip {
+  display: none;
   position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 300;
-  width: max-content;
-  max-width: 240px;
-  padding: 6px 10px;
+  z-index: 500;
+  max-width: 300px;
+  padding: 8px 10px;
   background: #123a78;
   color: #fff;
   font-size: 12px;
-  line-height: 1.5;
-  font-weight: 400;
-  border-radius: 7px;
-  white-space: normal;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  opacity: 0;
+  line-height: 1.55;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
   pointer-events: none;
-  transition: opacity 0.15s ease;
+  white-space: normal;
 }
-.ed-help-icon:hover::after { opacity: 1; }
+.ed-help-tooltip .ed-help-tooltip-img {
+  display: block;
+  max-width: 280px;
+  margin-bottom: 6px;
+  border-radius: 5px;
+  background: #fff;
+}
 
 /* ── Build 237: haixia import dialog container aligns with the update modal ── */
 .haixia-modal {

@@ -517,6 +517,43 @@ window.LineEditor = (function () {
     return LE.state.viewHistory.length > 0;
   };
 
+  /* ── Help tooltip (text + optional image) ── */
+  LE._helpTipEl = null;
+  LE._ensureHelpTip = function () {
+    if (LE._helpTipEl) return LE._helpTipEl;
+    var el = document.createElement("div");
+    el.id = "edHelpTooltip";
+    el.className = "ed-help-tooltip";
+    document.body.appendChild(el);
+    LE._helpTipEl = el;
+    return el;
+  };
+  document.addEventListener("mouseover", function (e) {
+    var icon = e.target && e.target.closest ? e.target.closest(".ed-help-icon") : null;
+    var tip = LE._ensureHelpTip();
+    if (!icon) { tip.style.display = "none"; return; }
+    var text = icon.getAttribute("data-tip") || "";
+    var imgSrc = icon.getAttribute("data-img");
+    tip.innerHTML = "";
+    if (imgSrc) {
+      var im = document.createElement("img");
+      im.src = imgSrc;
+      im.className = "ed-help-tooltip-img";
+      im.onerror = function () { im.remove(); };
+      tip.appendChild(im);
+    }
+    tip.appendChild(document.createTextNode(text));
+    tip.style.display = "block";
+    var r = icon.getBoundingClientRect();
+    tip.style.left = (r.left + window.scrollX) + "px";
+    tip.style.top = (r.bottom + window.scrollY + 6) + "px";
+  });
+  document.addEventListener("mouseout", function (e) {
+    if (e.target && e.target.closest && e.target.closest(".ed-help-icon")) {
+      LE._ensureHelpTip().style.display = "none";
+    }
+  });
+
   /* ── Toast ── */
   LE.toast = function (msg, type) {
     type = type || "info";
@@ -668,7 +705,7 @@ window.LineEditor = (function () {
       var tokens = model.templates[k] || [];
       for (var i = 0; i < tokens.length; i++) {
         if (typeof tokens[i] === "string" && tokens[i].indexOf(">") >= 0) {
-          lineErrors.push({ field: k, module: "全局模版", message: tLabels[k] + " 第" + (i + 1) + "个标记包含非法字符 >" });
+          lineErrors.push({ field: k, module: "全局报站规则", message: tLabels[k] + " 第" + (i + 1) + "个标记包含非法字符 >" });
         }
       }
     });
@@ -900,13 +937,13 @@ window.LineEditor = (function () {
     var cleaned = text.replace(/\r/g, "\n");
     if (lang === "zh") {
       // Chinese: split on spaces, punctuation, arrows, digits with context
-      var parts = cleaned.split(/[\s,，、;；\n。\.—\-—→←＞>]+/);
+      var parts = cleaned.split(/[\s,，、;；\n。\.—\-—→←➜＞>]+/);
       return parts.map(function (p) { return p.trim(); }).filter(function (p) {
         return p && !/^\d+$/.test(p);
       });
     } else {
       // English: split on 2+ spaces, semicolons, commas, newlines, dashes, arrows, emoji
-      var parts2 = cleaned.split(/(?:\s{2,}|[;；\n—\-—→←＞>]|(?:\s*[,.]\s*))+/);
+      var parts2 = cleaned.split(/(?:\s{2,}|[;；\n—\-—→←➜＞>]|(?:\s*[,.]\s*))+/);
       return parts2.map(function (p) { return p.trim(); }).filter(function (p) {
         return p && !/^\d+$/.test(p);
       });

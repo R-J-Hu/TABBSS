@@ -459,7 +459,7 @@
         var idx = LE.mainState.newIndex;
         var c = idx.companies.find(function (c) { return c.name === oldName; });
         if (c) c.name = newName;
-        idx.companies.sort(function (a, b) { return a.name.localeCompare(b.name); });
+        // 保留原有位置：不重新按字母排序，重命名后公司停留在原索引处
         // Update line file paths
         (c ? c.lines : []).forEach(function (l) {
           l.file = l.file.replace(oldPath + "/", newPath + "/");
@@ -468,7 +468,7 @@
         if (LE.mainCallbacks.refreshIndex) LE.mainCallbacks.refreshIndex();
       }
       LE.renderL0();
-      LE.toast("已重命名：" + oldName + " → " + newName, "success");
+      LE.toast("已重命名：" + oldName + " ➜ " + newName, "success");
     }).catch(function (e) { LE.toast("重命名失败：" + e.message, "error"); });
   };
 
@@ -1032,8 +1032,9 @@
     var contentEl = $("edL2Content");
     var tabs = [
       { key: "basic", label: "基础信息" },
+      { key: "media", label: "管理音频文件" },
       { key: "stations", label: "车站信息" },
-      { key: "templates", label: "全局模版" },
+      { key: "templates", label: "全局报站规则" },
       { key: "strules", label: "各站特殊规则" },
       { key: "tips", label: "手按提示语" },
     ];
@@ -1064,8 +1065,8 @@
       tab.addEventListener("click", function () {
         var targetTab = tab.dataset.tab;
         LE.state.l2ActiveTab = targetTab;
-        // Clear line errors for the tab being entered
-        if (LE.state.validationErrors && LE.state.validationErrors.lineErrors) {
+        // Clear line errors for the tab being entered (media tab has no fields, skip)
+        if (targetTab !== "media" && LE.state.validationErrors && LE.state.validationErrors.lineErrors) {
           LE.state.validationErrors.lineErrors = LE.state.validationErrors.lineErrors.filter(function (e) {
             var f = e.field || "";
             var ftab = "basic";
@@ -1081,6 +1082,7 @@
 
     // Render active sub-page (all in edit mode)
     if (active === "basic") LE.renderL2Basic(contentEl);
+    else if (active === "media") LE.renderL2Media(contentEl);
     else if (active === "stations") LE.renderL2Stations(contentEl);
     else if (active === "templates") LE.renderL2Templates(contentEl);
     else if (active === "strules") LE.renderL2StationRules(contentEl);
@@ -1125,24 +1127,11 @@
 
     // Text editor link
     var l2Footer = contentEl.parentNode.querySelector(".ed-l2-footer");
-    // Media folder link
-    if (l2Footer && !l2Footer.querySelector(".ed-media-link")) {
-      var mediaLink = document.createElement("a");
-      mediaLink.href = "#";
-      mediaLink.className = "ed-link ed-media-link";
-      mediaLink.textContent = "打开媒体文件夹";
-      mediaLink.style.cssText = "font-size:11px;";
-      mediaLink.addEventListener("click", function (e) {
-        e.preventDefault();
-        LE.showMediaBrowser(LE.state.currentCompany);
-      });
-      l2Footer.insertBefore(mediaLink, l2Footer.firstChild);
-    }
     if (l2Footer && !l2Footer.querySelector(".ed-text-link")) {
       var link = document.createElement("a");
       link.href = "#";
       link.className = "ed-link ed-text-link";
-      link.textContent = "直接编辑线路文件（高级）→";
+      link.textContent = "直接编辑线路文件（高级）➜";
       link.style.cssText = "font-size:11px;margin-right:auto;";
       link.addEventListener("click", function (e) {
         e.preventDefault();
@@ -1250,7 +1239,7 @@
       titleText = "校验通过，未发现问题";
     } else {
       titleIcon = '<span style="font-size:18px;color:#eab308">⚠</span>';
-      titleText = "媒体文件缺失，请注意";
+      titleText = "音频文件缺失，请注意";
     }
 
     var overlay = document.createElement("div");
@@ -1402,16 +1391,17 @@
     if (!m) { container.innerHTML = '<div class="ed-empty">未加载线路</div>'; return; }
 
     var fileName = (LE.state.currentLineRelPath || "").split("/").pop().replace(/\.ini$/i, "");
-    var helpIcon = ' <span class="ed-help-icon" data-tip="';
-    var helpClose = '">?</span>';
+    var helpIcon = function (tipText, imgPath) {
+      return ' <span class="ed-help-icon" data-tip="' + tipText + '"' + (imgPath ? ' data-img="' + imgPath + '"' : '') + '>?</span>';
+    };
 
     var html = "";
     // File name (read-only, rename via L1)
-    html += '<div class="ed-form-group"><label class="ed-form-label">线路文件名称' + helpIcon + '在下拉框、编辑栏中看到的线路文件名称' + helpClose + '</label>';
+    html += '<div class="ed-form-group"><label class="ed-form-label">线路文件名' + helpIcon('在线路列表、编辑器中显示的线路文件名。不能在此页面修改，要修改必须返回上一级「线路列表」修改线路文件名。', 'res/线路文件名.png') + '</label>';
     html += '<input class="ed-form-input readonly" value="' + LE.escHtml(fileName) + '" readonly></div>';
 
-    // Display name (second position)
-    html += '<div class="ed-form-group"><label class="ed-form-label">线路显示名称<span class="ed-required">*</span>' + helpIcon + '在走字屏显示的线路名' + helpClose + '</label>';
+    // Display name (second position) — 线路简称
+    html += '<div class="ed-form-group"><label class="ed-form-label">线路简称<span class="ed-required">*</span>' + helpIcon('在线路图上方显示的线路简写。比如，线路文件名有时可能带有备注（如19路（2007版）），在简写的时候就可以去掉这些（比如简写为19），这样线路图上显示的方向就更简单（如19➜第一码头）。', 'res/线路图显示名.png') + '</label>';
     html += '<input class="ed-form-input" id="edFldLineName" value="' + LE.escHtml(m.lineName) + '" placeholder="请输入线路名称（如：厦门1路）"></div>';
 
     html += '<div class="ed-form-group"><label class="ed-form-label">版本</label>';
@@ -1446,19 +1436,16 @@
 
     // Mode selector — toggle switch
     var isLoop = m.mode === "loop";
-    html += '<div class="ed-form-group"><label class="ed-form-label">运行模式</label>';
-    html += '<div class="ed-switch-group">';
+    html += '<div class="ed-switch-group" style="margin-bottom:14px">';
     html += '<div class="ed-switch" id="edModeSwitch">';
-    html += '<span class="ed-switch-option' + (!isLoop ? " active" : "") + '" data-mode="bidirectional">双向模式</span>';
-    html += '<span class="ed-switch-option' + (isLoop ? " active" : "") + '" data-mode="loop">环线模式</span>';
+    html += '<span class="ed-switch-option' + (!isLoop ? " active" : "") + '" data-mode="bidirectional">双向运行</span>';
+    html += '<span class="ed-switch-option' + (isLoop ? " active" : "") + '" data-mode="loop">单向环线运行</span>';
     html += '</div>';
-    html += '</div></div>';
+    html += '</div>';
 
-    // Auto-recognition
-
-    // Auto-recognition
-    html += '<div class="ed-collapse-header" id="edAutoRecHeader"><span class="ed-arrow">▶</span> 自动识别站点</div>';
-    html += '<div class="ed-collapse-body" id="edAutoRecBody">';
+    // Auto-recognition (default expanded)
+    html += '<div class="ed-collapse-header open" id="edAutoRecHeader"><span class="ed-arrow">▶</span> 自动识别站点</div>';
+    html += '<div class="ed-collapse-body open" id="edAutoRecBody">';
     html += '<textarea class="ed-form-textarea" id="edAutoRecText" placeholder="在此粘贴站点文本..." style="min-height:60px"></textarea>';
     html += '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">';
     html += '<button class="ed-btn" data-rec="upCn">识别到上行中文</button>';
@@ -1467,12 +1454,12 @@
     html += '<button class="ed-btn" data-rec="downEn">识别到下行英文</button>';
     html += '</div></div>';
 
-    // Station columns
+    // Station columns (loop mode has no direction label)
     var loopMode = m.mode === "loop";
     var gridStyle = loopMode ? "grid-template-columns:1fr" : "grid-template-columns:1fr 1fr";
-    html += '<div class="ed-station-columns" style="' + gridStyle + '" id="edStationGrid">';
+    html += '<div class="ed-station-columns" style="' + gridStyle + ';margin-top:14px" id="edStationGrid">';
 
-    html += buildStationColumn("上行", m.upStationsCn, m.upStationsEn, "upStationsCn", "upStationsEn");
+    html += buildStationColumn(loopMode ? "" : "上行", m.upStationsCn, m.upStationsEn, "upStationsCn", "upStationsEn");
     if (!loopMode) {
       html += buildStationColumn("下行", m.downStationsCn, m.downStationsEn, "downStationsCn", "downStationsEn");
     }
@@ -1950,7 +1937,7 @@
   }
 
   function buildStationColumn(label, stopsCn, stopsEn, cnKey, enKey) {
-    var html = '<div class="ed-station-col"><h4>' + label + '</h4>';
+    var html = '<div class="ed-station-col">' + (label ? '<h4>' + label + '</h4>' : '');
 
     // Detect same-name stations (Chinese) for warning
     var cnSeen = {};
@@ -2058,11 +2045,6 @@
     overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) overlay.remove(); });
   };
 
-  /* ── Media Browser stub ── */
-  LE.showMediaBrowser = function (company) {
-    LE.toast("媒体文件夹功能即将推出", "info");
-  };
-
   /* ── L2: Global Templates Sub-Page ── */
   LE.renderL2Templates = function (container) {
     var m = LE.state.editModel;
@@ -2099,7 +2081,7 @@
     ];
 
     groups.forEach(function (group, gi) {
-      html += '<div style="margin-bottom:16px">';
+      html += '<div style="margin-bottom:24px">';
       html += '<h4 style="font-size:13px;color:#69778d;margin:0 0 6px">' + group.title + '</h4>';
       group.fields.forEach(function (field) {
         if (field.hideIfSame && m.isUpDownSame) return;
@@ -2249,9 +2231,9 @@
     var company = (LE.state.currentLineRelPath || "").split("/")[0] || LE.state.currentCompany;
 
     var html = "";
-    html += '<div style="margin-bottom:8px">';
-    html += '<a href="#" class="ed-link" id="edExpandAll">一键展开所有</a> ';
-    html += '<a href="#" class="ed-link" id="edCollapseAll">一键收起所有</a>';
+    html += '<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">';
+    html += '<button class="ed-btn ed-btn-ghost" id="edExpandAll">一键展开所有</button>';
+    html += '<button class="ed-btn ed-btn-ghost" id="edCollapseAll">一键收起所有</button>';
     html += '</div>';
 
     function buildDirSection(dirLabel, stops, overrides, dir) {
@@ -2365,12 +2347,10 @@
     });
 
     // Expand/collapse all
-    container.querySelector("#edExpandAll").addEventListener("click", function (e) {
-      e.preventDefault();
+    container.querySelector("#edExpandAll").addEventListener("click", function () {
       container.querySelectorAll(".ed-strule-card").forEach(function (c) { c.classList.add("open"); });
     });
-    container.querySelector("#edCollapseAll").addEventListener("click", function (e) {
-      e.preventDefault();
+    container.querySelector("#edCollapseAll").addEventListener("click", function () {
       container.querySelectorAll(".ed-strule-card").forEach(function (c) { c.classList.remove("open"); });
     });
 
@@ -2428,7 +2408,7 @@
       html += '<div class="ed-form-group" style="padding:8px;background:#f7f9fc;border-radius:8px;border:1px solid #e5edf6">';
       html += '<label class="ed-form-label">提示语 ' + (i + 1) + '</label>';
       html += '<input class="ed-form-input" id="edTipName_' + i + '" value="' + LE.escHtml(tip.name) +
-        '" placeholder="服务语标题，如"让座"，不填写则默认显示服务语X" style="margin-bottom:6px" ' + ' maxlength="20">';
+        '" placeholder="如让座、转弯等，不填写则默认显示服务语X" style="margin-bottom:6px" ' + ' maxlength="20">';
       html += '<div id="edTipRule_' + i + '" class="ed-rule-editor-slot"></div>';
       {
         html += '<a href="#" class="ed-link ed-clear-tip" data-idx="' + i + '" style="font-size:11px;margin-top:4px;display:inline-block">清空本条</a>';
@@ -2758,7 +2738,7 @@
         LE.renderL1();
         // Delete old
         await LE.api.deleteFile(sourceFile);
-        LE.toast("已重命名：" + sourceName + " → " + newName, "success");
+        LE.toast("已重命名：" + sourceName + " ➜ " + newName, "success");
       }).catch(function (e) {
         LE.toast("重命名失败：" + (e.message || "未知错误"), "error");
       });
@@ -2840,7 +2820,7 @@
       companyOptsHtml += '</select></div>';
     }
 
-    var msg = '将导入 <strong>' + lines.length + '</strong> 个线路、<strong>' + mediaCount + '</strong> 个媒体文件。';
+    var msg = '将导入 <strong>' + lines.length + '</strong> 个线路、<strong>' + mediaCount + '</strong> 个音频文件。';
     if (hasConflicts) msg += '<br><span style="color:#eab308">⚠ ' + conflicts.length + ' 个线路与本地冲突。</span>';
 
     var overlay = document.createElement("div");
@@ -2909,17 +2889,9 @@
   // Expose for external callers (file association double-click)
   LE._showImportPreviewDialog = showImportPreviewDialog;
 
-  /* ── Media Browser Dialog ── */
-  LE.showMediaBrowser = function (company) {
-    if (!LE.state._mediaSort) LE.state._mediaSort = { key: "name", dir: "asc" };
-    var sortState = LE.state._mediaSort;
-
-    var overlay = document.createElement("div");
-    overlay.className = "ed-modal-overlay";
-    overlay.innerHTML = '<div class="ed-modal" style="width:700px;max-height:88vh">' +
-      '<div class="ed-modal-header"><h3>媒体文件夹 — ' + LE.escHtml(company) + '</h3><button class="ed-modal-close">x</button></div>' +
-      '<div class="ed-modal-body" id="edMediaBody">' +
-      '<div style="margin-bottom:8px;display:flex;gap:8px">' +
+  /* ── Media Browser Panel ── */
+  function buildMediaPanelHTML() {
+    return '<div style="margin-bottom:8px;display:flex;gap:8px">' +
       '<input id="edMediaSearch" class="ed-form-input" placeholder="搜索文件名..." style="flex:1">' +
       '<button class="ed-btn ed-btn-ghost" id="edMediaRefresh">刷新</button>' +
       '<button class="ed-btn ed-btn-ghost" id="edMediaOpenFolder">在系统中打开</button></div>' +
@@ -2936,11 +2908,12 @@
         '<button id="edMediaBatchMove">批量移动</button>' +
         '<button id="edMediaBatchDel" class="ed-media-float-danger">批量删除</button>' +
       '</div>' +
-      '<div id="edMediaTableContainer"><div class="ed-empty">加载中...</div></div></div></div>';
+      '<div id="edMediaTableContainer"><div class="ed-empty">加载中...</div></div>';
+  }
 
-    $("lineEditorSidebar").appendChild(overlay);
-
-    overlay.querySelector(".ed-modal-close").onclick = function () { overlay.remove(); };
+  function bindMediaBrowser(root, company) {
+    if (!LE.state._mediaSort) LE.state._mediaSort = { key: "name", dir: "asc" };
+    var sortState = LE.state._mediaSort;
 
     var sortKeys = ["name", "size", "type", "mtime"];
     var sortLabels = { name: "名称", size: "大小", type: "类型", mtime: "修改时间" };
@@ -2951,15 +2924,15 @@
     }
 
     function updateFloatBar() {
-      var checked = overlay.querySelectorAll(".ed-media-check:checked");
-      var floatBar = overlay.querySelector("#edMediaFloatBar");
+      var checked = root.querySelectorAll(".ed-media-check:checked");
+      var floatBar = root.querySelector("#edMediaFloatBar");
       if (checked.length > 0) {
         floatBar.classList.add("visible");
       } else {
         floatBar.classList.remove("visible");
       }
       // Update thead sticky offset based on float bar visibility
-      var thead = overlay.querySelector(".ed-media-table thead");
+      var thead = root.querySelector(".ed-media-table thead");
       if (thead) {
         if (floatBar.classList.contains("visible")) {
           thead.classList.add("sticky-offset");
@@ -2967,8 +2940,8 @@
           thead.classList.remove("sticky-offset");
         }
       }
-      var all = overlay.querySelectorAll(".ed-media-check");
-      var selAll = overlay.querySelector("#edMediaSelectAll");
+      var all = root.querySelectorAll(".ed-media-check");
+      var selAll = root.querySelector("#edMediaSelectAll");
       if (selAll) {
         selAll.checked = all.length > 0 && checked.length === all.length;
         selAll.indeterminate = checked.length > 0 && checked.length < all.length;
@@ -2977,7 +2950,7 @@
 
     function getCheckedFiles() {
       var files = [];
-      overlay.querySelectorAll(".ed-media-check:checked").forEach(function (cb) {
+      root.querySelectorAll(".ed-media-check:checked").forEach(function (cb) {
         files.push(cb.dataset.file);
       });
       return files;
@@ -2986,7 +2959,7 @@
     function batchUploadFiles(files, onDone) {
       var total = files.length;
       var done = 0;
-      var dropZone = overlay.querySelector("#edMediaDropZone");
+      var dropZone = root.querySelector("#edMediaDropZone");
       function upOne(i) {
         if (i >= total) {
           dropZone.innerHTML = '<span class="ed-media-drop-icon">+</span><span>拖放音频文件到此处上传，或点击选择文件</span>';
@@ -3009,7 +2982,7 @@
     function loadMedia() {
       LE.api.listDir(company, true).then(function (resp) {
         var items = resp.items || [];
-        var q = (overlay.querySelector("#edMediaSearch").value || "").toLowerCase();
+        var q = (root.querySelector("#edMediaSearch").value || "").toLowerCase();
         if (q) items = items.filter(function (i) { return i.name.toLowerCase().indexOf(q) >= 0; });
 
         // Sort
@@ -3047,27 +3020,27 @@
             '</td></tr>';
         });
         html += '</tbody></table>';
-        overlay.querySelector("#edMediaTableContainer").innerHTML = html;
+        root.querySelector("#edMediaTableContainer").innerHTML = html;
 
         // Initialize sticky thead offset
         updateFloatBar();
 
         // Select-all checkbox
-        var selAllCb = overlay.querySelector("#edMediaSelectAll");
+        var selAllCb = root.querySelector("#edMediaSelectAll");
         if (selAllCb) {
           selAllCb.addEventListener("change", function () {
-            overlay.querySelectorAll(".ed-media-check").forEach(function (cb) { cb.checked = selAllCb.checked; });
+            root.querySelectorAll(".ed-media-check").forEach(function (cb) { cb.checked = selAllCb.checked; });
             updateFloatBar();
           });
         }
 
         // Per-row checkboxes
-        overlay.querySelectorAll(".ed-media-check").forEach(function (cb) {
+        root.querySelectorAll(".ed-media-check").forEach(function (cb) {
           cb.addEventListener("change", updateFloatBar);
         });
 
         // Sort header clicks
-        overlay.querySelectorAll(".ed-media-th-sort").forEach(function (th) {
+        root.querySelectorAll(".ed-media-th-sort").forEach(function (th) {
           th.addEventListener("click", function () {
             var k = th.dataset.sort;
             if (sortState.key === k) sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
@@ -3077,7 +3050,7 @@
         });
 
         // Delete buttons
-        overlay.querySelectorAll(".ed-media-del").forEach(function (del) {
+        root.querySelectorAll(".ed-media-del").forEach(function (del) {
           del.addEventListener("click", function () {
             showConfirmModal("删除文件", "确认删除：" + del.dataset.file + "？", function (ok) {
               if (!ok) return;
@@ -3090,14 +3063,14 @@
         });
 
         // Copy buttons
-        overlay.querySelectorAll(".ed-media-copy").forEach(function (btn) {
+        root.querySelectorAll(".ed-media-copy").forEach(function (btn) {
           btn.addEventListener("click", function () {
             showMediaCopyMoveDialog("copy", company + "/" + btn.dataset.file, btn.dataset.file, company, function () { loadMedia(); });
           });
         });
 
         // Move buttons
-        overlay.querySelectorAll(".ed-media-move").forEach(function (btn) {
+        root.querySelectorAll(".ed-media-move").forEach(function (btn) {
           btn.addEventListener("click", function () {
             showMediaCopyMoveDialog("move", company + "/" + btn.dataset.file, btn.dataset.file, company, function () { loadMedia(); });
           });
@@ -3105,18 +3078,18 @@
 
         updateFloatBar();
       }).catch(function () {
-        overlay.querySelector("#edMediaTableContainer").innerHTML = '<div class="ed-empty">加载失败</div>';
+        root.querySelector("#edMediaTableContainer").innerHTML = '<div class="ed-empty">加载失败</div>';
       });
     }
 
     loadMedia();
 
     // Search
-    overlay.querySelector("#edMediaSearch").addEventListener("input", loadMedia);
-    overlay.querySelector("#edMediaRefresh").addEventListener("click", loadMedia);
+    root.querySelector("#edMediaSearch").addEventListener("input", loadMedia);
+    root.querySelector("#edMediaRefresh").addEventListener("click", loadMedia);
 
     // Open in system
-    overlay.querySelector("#edMediaOpenFolder").addEventListener("click", function () {
+    root.querySelector("#edMediaOpenFolder").addEventListener("click", function () {
       LE.api.openFolder(company).then(function () {
         LE.toast("已在系统中打开", "success");
       }).catch(function (e) {
@@ -3126,7 +3099,7 @@
 
     // Upload button removed — drop zone now handles click-to-upload
     // Drop zone click: open file picker (same as old upload button)
-    var dropZone = overlay.querySelector("#edMediaDropZone");
+    var dropZone = root.querySelector("#edMediaDropZone");
     dropZone.addEventListener("click", function (e) {
       // Don't trigger if user was dragging (they'd use the drop event instead)
       var fi = document.createElement("input");
@@ -3160,29 +3133,29 @@
     });
 
     // Float toolbar buttons
-    overlay.querySelector("#edMediaSelAll").addEventListener("click", function () {
-      overlay.querySelectorAll(".ed-media-check").forEach(function (cb) { cb.checked = true; });
+    root.querySelector("#edMediaSelAll").addEventListener("click", function () {
+      root.querySelectorAll(".ed-media-check").forEach(function (cb) { cb.checked = true; });
       updateFloatBar();
     });
-    overlay.querySelector("#edMediaDeselAll").addEventListener("click", function () {
-      overlay.querySelectorAll(".ed-media-check").forEach(function (cb) { cb.checked = false; });
+    root.querySelector("#edMediaDeselAll").addEventListener("click", function () {
+      root.querySelectorAll(".ed-media-check").forEach(function (cb) { cb.checked = false; });
       updateFloatBar();
     });
-    overlay.querySelector("#edMediaInvSel").addEventListener("click", function () {
-      overlay.querySelectorAll(".ed-media-check").forEach(function (cb) { cb.checked = !cb.checked; });
+    root.querySelector("#edMediaInvSel").addEventListener("click", function () {
+      root.querySelectorAll(".ed-media-check").forEach(function (cb) { cb.checked = !cb.checked; });
       updateFloatBar();
     });
-    overlay.querySelector("#edMediaBatchCopy").addEventListener("click", function () {
+    root.querySelector("#edMediaBatchCopy").addEventListener("click", function () {
       var files = getCheckedFiles();
       if (!files.length) { LE.toast("请先选择文件", "warn"); return; }
       showMediaCopyMoveDialog("copy", files.map(function (f) { return company + "/" + f; }), files[0], company, function () { loadMedia(); }, true);
     });
-    overlay.querySelector("#edMediaBatchMove").addEventListener("click", function () {
+    root.querySelector("#edMediaBatchMove").addEventListener("click", function () {
       var files = getCheckedFiles();
       if (!files.length) { LE.toast("请先选择文件", "warn"); return; }
       showMediaCopyMoveDialog("move", files.map(function (f) { return company + "/" + f; }), files[0], company, function () { loadMedia(); }, true);
     });
-    overlay.querySelector("#edMediaBatchDel").addEventListener("click", function () {
+    root.querySelector("#edMediaBatchDel").addEventListener("click", function () {
       var files = getCheckedFiles();
       if (!files.length) { LE.toast("请先选择文件", "warn"); return; }
       showConfirmModal("批量删除", "确认删除 " + files.length + " 个文件？", function (ok) {
@@ -3195,7 +3168,29 @@
         delOne(0);
       }, true);
     });
+  }
 
+  /* ── L2: Audio Folder (Media Browser) Sub-Page ── */
+  LE.renderL2Media = function (container) {
+    var company = (LE.state.currentLineRelPath || "").split("/")[0] || LE.state.currentCompany;
+    var html = "";
+    html += '<div class="ed-media-banner"><strong>请注意：</strong>全公司共享同一个音频文件夹。<br>因此你在这里添加/更改的文件，在同公司的其他线路内也会一起生效。</div>';
+    html += '<h4 class="ed-media-panel-title">音频文件夹 — ' + LE.escHtml(company) + '</h4>';
+    html += buildMediaPanelHTML();
+    container.innerHTML = html;
+    bindMediaBrowser(container, company);
+  };
+
+  /* ── Media Browser Dialog ── */
+  LE.showMediaBrowser = function (company) {
+    var overlay = document.createElement("div");
+    overlay.className = "ed-modal-overlay";
+    overlay.innerHTML = '<div class="ed-modal" style="width:700px;max-height:88vh">' +
+      '<div class="ed-modal-header"><h3>音频文件夹 — ' + LE.escHtml(company) + '</h3><button class="ed-modal-close">x</button></div>' +
+      '<div class="ed-modal-body" id="edMediaBody">' + buildMediaPanelHTML() + '</div></div>';
+    $("lineEditorSidebar").appendChild(overlay);
+    overlay.querySelector(".ed-modal-close").onclick = function () { overlay.remove(); };
+    bindMediaBrowser(overlay, company);
     overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) overlay.remove(); });
   };
 
