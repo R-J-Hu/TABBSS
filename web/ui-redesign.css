@@ -30,7 +30,7 @@ button,select { font:inherit; } button { cursor:pointer; } button:focus-visible,
 /* Editor visual reference layer. Build 219-only selectors remain in editor.css. */
 /* ── Visual Line Editor — Sidebar & Layout ── */
 .line-editor-dock {
-  width: min(58vw, 720px);
+  width: clamp(760px, 58vw, 860px);
   z-index: 41; /* above old text editor sidebar */
   padding-bottom: 24px;
   box-sizing: border-box;
@@ -70,10 +70,14 @@ button,select { font:inherit; } button { cursor:pointer; } button:focus-visible,
 }
 
 .ed-breadcrumb .ed-bc-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   cursor: pointer;
   color: #1468df;
 }
 .ed-breadcrumb .ed-bc-item:hover { text-decoration: underline; }
+.ed-breadcrumb .ed-bc-item .ui-icon { width: 15px; height: 15px; }
 .ed-breadcrumb .ed-bc-sep { color: #8a94a6; }
 .ed-breadcrumb .ed-bc-current { color: #20355c; font-weight: 600; }
 
@@ -176,10 +180,6 @@ button,select { font:inherit; } button { cursor:pointer; } button:focus-visible,
 .ed-card-body { cursor: pointer; }
 .ed-card-actions-col { display: flex; flex-direction: row; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
 .ed-card-actions-col .ed-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; }
-.ed-card-actions-col .ed-btn::before { font-size: 12px; line-height: 1; }
-.ed-card-actions-col .ed-rename-company::before { content: "✎"; }
-.ed-card-actions-col .ed-delete-company::before { content: "⌫"; }
-.ed-card-actions-col .ed-export-company::before { content: "⇩"; }
 
 .ed-card-actions {
   display: flex;
@@ -191,7 +191,6 @@ button,select { font:inherit; } button { cursor:pointer; } button:focus-visible,
 .ed-card-actions a { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; color: #1468df; background:#ffffff; border:1px solid #dfe7f2; border-radius:5px; cursor: pointer; text-decoration:none; }
 .ed-card-actions a:hover { text-decoration: underline; }
 .ed-card-actions a.ed-card-del { color: #f87171; }
-.ed-card-edit::before { content:"✎"; }.ed-card-rename::before { content:"↗"; }.ed-card-del::before { content:"⌫"; }.ed-card-move::before { content:"↔"; }.ed-card-copy::before { content:"⧉"; }.ed-card-export::before { content:"⇩"; }
 
 /* L1 line incomplete warning */
 .ed-card-warn-icon {
@@ -1405,6 +1404,42 @@ body { margin:0; min-width:980px; color:#123970; background:#f4f7fc; font:14px "
 .editor-dock:not(.open),
 .line-editor-dock:not(.open),
 .dev-panel-sidebar:not(.panel-open) { box-shadow: none; }
+
+/* ── Build 240: editor refinement ── */
+.ed-l2-tab { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.ed-l2-tab-order { display:grid; place-items:center; width:17px; height:17px; border-radius:50%; color:#fff; background:#6b7b93; font:700 10px/1 system-ui,sans-serif; font-style:normal; }
+.ed-l2-tab.active .ed-l2-tab-order { background:#1769d8; }
+.ed-station-col-title { display:grid; grid-template-columns:5px minmax(0,1fr) auto; align-items:center; column-gap:8px; margin:0 0 8px; padding-left:0; border:0; }
+.ed-station-col-title::before { content:""; flex:0 0 5px; width:5px; height:20px; border-radius:1px; background:#4b87e6; }
+.ed-station-col-title h4,.ed-section-title { margin:0; font-size:14px; font-weight:600; }
+.ed-station-col-title.ed-theme-up h4,.ed-section-title.ed-theme-up { color:#16803c; border-color:#22a85a; }
+.ed-station-col-title.ed-theme-down h4,.ed-section-title.ed-theme-down { color:#c46714; border-color:#f08a2e; }
+.ed-station-col-title.ed-theme-loop h4,.ed-section-title.ed-theme-blue { color:#1769d8; border-color:#4b87e6; }
+.ed-station-col-title.ed-theme-up::before { background:#22a85a; }.ed-station-col-title.ed-theme-down::before { background:#f08a2e; }.ed-station-col-title.ed-theme-loop::before { background:#4b87e6; }
+.ed-section-title { margin:0 0 8px; padding-left:9px; border-left:7px solid #4b87e6; }
+.ed-station-reverse,.ed-station-col-title .ed-reverse-btn { flex:0 0 auto; font-size:11px; }
+.ed-toggle { display:inline-flex!important; flex-direction:row!important; align-items:center!important; gap:8px; margin:0 0 18px!important; color:#314765; font-size:13px; line-height:20px; cursor:pointer; user-select:none; }
+.ed-toggle input { position:absolute; opacity:0; pointer-events:none; }
+.ed-toggle-track { position:relative; width:34px; height:20px; border-radius:999px; background:#b8c4d3; transition:background .15s; }
+.ed-toggle-track::after { content:""; position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 1px 2px #102a4a44; transition:transform .15s; }
+.ed-toggle input:checked + .ed-toggle-track { background:#1769d8; }
+.ed-toggle input:checked + .ed-toggle-track::after { transform:translateX(14px); }
+.ed-template-direction-group { margin:0 0 18px; border:1px solid #dfe7f1; border-radius:9px; background:#fff; overflow:hidden; }
+.ed-template-tabs { display:flex; gap:2px; padding:5px 8px 0; background:#f7f9fc; border-bottom:1px solid #dfe7f1; }
+.ed-template-direction-body { padding:16px 16px 0; }
+.ed-template-tab { padding:6px 14px; border:1px solid transparent; border-bottom:0; border-radius:7px 7px 0 0; background:transparent; font-size:13px; font-weight:600; cursor:pointer; }
+.ed-template-tab.ed-theme-up { color:#16803c; }.ed-template-tab.ed-theme-down { color:#c46714; }
+.ed-template-tab.ed-theme-up.active { border-color:#22a85a; background:#effaf3; }.ed-template-tab.ed-theme-down.active { border-color:#f08a2e; background:#fff6ed; }
+.ed-media-actions { display:inline-flex; align-items:center; gap:3px; min-width:112px!important; }
+.ed-media-actions button { display:grid; place-items:center; width:25px; height:25px; padding:0; border:0; border-radius:5px; background:transparent; cursor:pointer; }
+.ed-media-actions .ui-icon { width:16px; height:16px; }.ed-media-copy { color:#1769d8!important; }.ed-media-move { color:#c67a19!important; margin:0!important; }.ed-media-download { color:#258152; }.ed-media-del { color:#d6535d!important; margin:0!important; }
+.ed-media-actions button:hover { background:#eaf1fa; }.ed-media-actions .ed-media-del:hover { background:#fff0f1; }
+.as-toolbar button { display:inline-flex; align-items:center; gap:4px; }.as-toolbar .ui-icon { width:14px; height:14px; }
+.audio-selector-popup { background:#fff!important; }
+.ed-toast-container { top:calc(var(--player-topbar-height) + 16px); right:calc(var(--player-rail-width) + 16px); }
+.tip-empty { grid-column:1 / -1; align-self:center; margin:0; color:#7a889d; text-align:center; font-size:13px; }
+.ed-btn .ed-chevron { display:inline-flex; align-items:center; align-self:center; height:18px; line-height:18px; transform:translateY(-1px); }
+.ed-default-mask { display:contents; }
 
 /* ── Build 237: route badge → terminal, EN terminal aligns under CN terminal ── */
 .route-title > strong {

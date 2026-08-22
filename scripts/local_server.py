@@ -149,6 +149,8 @@ class LocalHandler(SimpleHTTPRequestHandler):
                 self._api_rmdir(data)
             elif api == "/api/file/copy":
                 self._api_copy(data)
+            elif api == "/api/file/download":
+                self._api_download(data)
             elif api == "/api/file/update_index":
                 self._api_update_index(data)
             else:
@@ -503,6 +505,43 @@ class LocalHandler(SimpleHTTPRequestHandler):
         import shutil
         shutil.copy2(src, dst)
         self._send_json(200, {"ok": True, "fromRelPath": src_rel, "toRelPath": dst_rel})
+
+    def _api_download(self, data):
+        """Download one selected file directly, or a ZIP for a batch selection."""
+        rel_paths = data.get("relPaths", [])
+        if not isinstance(rel_paths, list) or not rel_paths:
+            self._send_json(400, {"ok": False, "error": "未指定要下载的文件"})
+            return
+        files = []
+        for rel_path in rel_paths:
+            path = self._safe_rel(rel_path)
+            if not path.is_file() or path.suffix.lower() == ".ini":
+                raise ValueError("文件不存在或不允许下载")
+            files.append((str(rel_path), path))
+
+        if len(files) == 1:
+            name, path = files[0]
+            payload = path.read_bytes()
+            filename = path.name
+            content_type = "application/octet-stream"
+        else:
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                for rel_path, path in files:
+                    info = zipfile.ZipInfo(path.name)
+                    info.flag_bits |= 0x800
+                    zf.writestr(info, path.read_bytes())
+            payload = buf.getvalue()
+            filename = "音频文件.zip"
+            content_type = "application/zip"
+
+        from urllib.parse import quote
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(filename, safe='')}")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _api_update_index(self, data):
         """Add or remove a line entry in index.json without full reindex."""

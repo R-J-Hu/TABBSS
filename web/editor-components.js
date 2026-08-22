@@ -63,20 +63,105 @@
     var overlayEl = null;         // reference to current overlay DOM element
     var _usingDefaultTokens = false; // true when render() is showing expanded default tokens
 
-    function ensureDefaultTokens() {
-      // Copy default tokens into actual tokens without breaking overlay
-      if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === "【默认模版】")) {
-        tokens = defaultTokens.slice();
+    function layoutDefaultOverlay() {
+      if (overlayEl) { overlayEl.remove(); overlayEl = null; }
+      if (overlayBroken) return;
+      var mask = container.querySelector(".ed-default-mask");
+      if (!mask) return;
+      var items = Array.prototype.filter.call(mask.children, function (el) {
+        return el.classList.contains("re-tag") || el.classList.contains("re-gap");
+      });
+      if (!items.length) return;
+
+      var containerRect = container.getBoundingClientRect();
+      var rows = [];
+      items.forEach(function (el) {
+        var rect = el.getBoundingClientRect();
+        var row = rows.find(function (candidate) { return Math.abs(candidate.top - rect.top) < 2; });
+        if (!row) {
+          row = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+          rows.push(row);
+        } else {
+          row.left = Math.min(row.left, rect.left);
+          row.right = Math.max(row.right, rect.right);
+          row.top = Math.min(row.top, rect.top);
+          row.bottom = Math.max(row.bottom, rect.bottom);
+        }
+      });
+
+      var layer = document.createElement("span");
+      layer.className = "ed-default-mask-layer";
+      layer.setAttribute("aria-hidden", "true");
+      var widest = null;
+      rows.forEach(function (row) {
+        var fragment = document.createElement("span");
+        fragment.className = "ed-default-mask-fragment";
+        fragment.style.left = Math.max(0, row.left - containerRect.left - 4) + "px";
+        fragment.style.top = Math.max(0, row.top - containerRect.top - 4) + "px";
+        fragment.style.width = Math.min(containerRect.width, row.right - row.left + 8) + "px";
+        fragment.style.height = (row.bottom - row.top + 8) + "px";
+        layer.appendChild(fragment);
+        if (!widest || row.right - row.left > widest.right - widest.left) widest = row;
+      });
+      if (widest) {
+        var badge = document.createElement("span");
+        badge.className = "ed-default-mask-label";
+        badge.textContent = mask.getAttribute("data-badge-text") || "默认规则";
+        badge.style.left = Math.max(0, widest.left - containerRect.left) + "px";
+        badge.style.top = (widest.top - containerRect.top) + "px";
+        badge.style.width = (widest.right - widest.left) + "px";
+        badge.style.height = (widest.bottom - widest.top) + "px";
+        layer.appendChild(badge);
       }
+      container.appendChild(layer);
+      overlayEl = layer;
+    }
+
+    function scheduleDefaultOverlay() {
+      requestAnimationFrame(layoutDefaultOverlay);
+    }
+
+    function ensureDefaultTokens() {
+      // Expand every default marker in place. The visual sequence is expanded
+      // while masked, so its indices only match `tokens` after this conversion.
+      // Prefix and suffix tokens must remain intact when a nearby gap is used.
+      if (!defaultTokens || !defaultTokens.length) return;
+      var expanded = [];
+      var didExpand = false;
+      tokens.forEach(function (token) {
+        if (token === "【默认模版】") {
+          expanded = expanded.concat(defaultTokens);
+          didExpand = true;
+        } else {
+          expanded.push(token);
+        }
+      });
+      if (didExpand) tokens = expanded;
+      else if (!tokens.length) tokens = defaultTokens.slice();
     }
     function breakOverlay() {
       if (!_usingDefaultTokens) return;
       ensureDefaultTokens();
       overlayBroken = true;
+      container.focus();
+    }
+
+    function ensureDefaultMarker() {
+      // Boundary insertion does not edit the inherited sequence. Keep it as a
+      // marker, so the mask stays in the ordinary tag flow before/after it.
+      var markerIndex = tokens.indexOf("【默认模版】");
+      if (markerIndex >= 0) return markerIndex;
+      if (!tokens.length) {
+        tokens.push("【默认模版】");
+        return 0;
+      }
+      return -1;
     }
 
     function fireChange() {
-      var filtered = tokens.filter(function (t) { return t !== ""; });
+      var filtered = tokens.filter(function (t) {
+        return t !== "" && !(overlayLabel === "默认" && t === "【默认模版】");
+      });
       console.log("[rule-editor] fireChange, tokens=" + JSON.stringify(filtered));
       onChange(filtered);
     }
@@ -138,6 +223,7 @@
     /* ── render ── */
     function render() {
       var displayTokens = tokens.slice();
+      var displayTokenIndices = tokens.map(function (_, index) { return index; });
       _usingDefaultTokens = false;
       var defaultMaskStart = -1;
       var defaultMaskEnd = -1;
@@ -146,11 +232,13 @@
         if (tokens.length === 0) {
           // Case 1: completely empty — show full default
           displayTokens = defaultTokens.slice();
+          displayTokenIndices = defaultTokens.map(function (_, index) { return index; });
           defaultMaskStart = 0;
           defaultMaskEnd = displayTokens.length;
         } else if (tokens.length === 1 && tokens[0] === "【默认模版】") {
           // Case 2: only 【默认模版】 — expand it
           displayTokens = defaultTokens.slice();
+          displayTokenIndices = defaultTokens.map(function (_, index) { return index; });
           defaultMaskStart = 0;
           defaultMaskEnd = displayTokens.length;
         } else {
@@ -158,16 +246,24 @@
           if (dtIdx >= 0) {
             // Case 3: contains 【默认模版】 — expand in place
             var expanded = [];
+            var expandedIndices = [];
             for (var ti = 0; ti < tokens.length; ti++) {
               if (tokens[ti] === "【默认模版】") {
                 defaultMaskStart = expanded.length;
-                expanded = expanded.concat(defaultTokens);
+                defaultTokens.forEach(function (defaultToken, defaultIndex) {
+                  expanded.push(defaultToken);
+                  // Masked tags use their index after point-breaking.
+                  expandedIndices.push(defaultMaskStart + defaultIndex);
+                });
                 defaultMaskEnd = expanded.length;
               } else {
                 expanded.push(tokens[ti]);
+                // Prefix/suffix tags still refer to the compact stored array.
+                expandedIndices.push(ti);
               }
             }
             displayTokens = expanded;
+            displayTokenIndices = expandedIndices;
           }
         }
         if (defaultMaskStart >= 0 && defaultMaskEnd > defaultMaskStart) {
@@ -181,17 +277,11 @@
       // The wrapper holds: leading gap + all default tags + inter gaps + end inserter.
       // This ensures no separate flex children that could cause line wrapping in the outer container.
       var defaultWrapper = null;
+      var defaultMask = null;
       if (_usingDefaultTokens && defaultMaskStart >= 0) {
         defaultWrapper = document.createElement("span");
         defaultWrapper.className = "ed-default-wrapper";
-        defaultWrapper.style.position = "relative";
-        defaultWrapper.style.display = "inline-flex";
-        defaultWrapper.style.flexWrap = "wrap";
-        defaultWrapper.style.gap = "3px";
-        defaultWrapper.style.alignItems = "center";
         container.appendChild(defaultWrapper);
-        // Badge via CSS ::before — always at top, full width, never covered by tags
-        defaultWrapper.setAttribute("data-badge-text", overlayLabel || "默认规则");
       }
 
       // If no default wrapper, leading gap goes directly in container
@@ -214,13 +304,17 @@
       // Leading gap inside wrapper (if using wrapper, prepend before first tag)
       if (defaultWrapper && displayTokens.length > 0) {
         var wLeadGap = document.createElement("span");
+        // Reuse the standard gap affordance at the leading edge.
         wLeadGap.className = "re-gap";
+        wLeadGap.addEventListener("mouseenter", scheduleDefaultOverlay);
+        wLeadGap.addEventListener("mouseleave", scheduleDefaultOverlay);
         wLeadGap.addEventListener("click", function (e) {
           e.stopPropagation();
           if (editingIdx >= 0) commitEdit(editingIdx, null);
-          // Insert at defaultMaskStart (before the default sequence), not position 0
-          var insertPos = defaultMaskStart > 0 ? defaultMaskStart : 0;
-          if (_usingDefaultTokens) { ensureDefaultTokens(); }
+          // Leading insertion is outside the inherited sequence: keep the
+          // mask intact and insert directly before its real marker.
+          var insertPos = ensureDefaultMarker();
+          if (insertPos < 0) { breakOverlay(); insertPos = defaultMaskStart > 0 ? defaultMaskStart : 0; }
           tokens.splice(insertPos, 0, "");
           editingIdx = insertPos;
           render();
@@ -235,15 +329,22 @@
         var isP = LE.isParamToken(tok);
         var def = isP ? paramDef(tok) : null;
         var isDefaultMasked = _usingDefaultTokens && i >= defaultMaskStart && i < defaultMaskEnd;
+        var tokenIndex = isDefaultMasked ? i : displayTokenIndices[i];
         var label = isP ? (def ? (isDefaultMasked ? getAnnotatedLabel(tok) : def.label) : tok) : tok;
-        var inEdit = (editingIdx === i) && !isDefaultMasked;
+        var inEdit = (editingIdx === tokenIndex) && !isDefaultMasked;
 
-        // ALL tags go into wrapper when showing default, to keep single flex layout
-        var parentEl = (defaultWrapper) ? defaultWrapper : container;
+        // Keep the default sequence as one overlay region while prefix/suffix remain editable.
+        if (isDefaultMasked && !defaultMask) {
+          defaultMask = document.createElement("span");
+          defaultMask.className = "ed-default-mask";
+          defaultMask.setAttribute("data-badge-text", overlayLabel || "默认规则");
+          defaultWrapper.appendChild(defaultMask);
+        }
+        var parentEl = isDefaultMasked ? defaultMask : (defaultWrapper || container);
 
         var tag = document.createElement("span");
-        tag.className = "re-tag" + (isP ? " re-tag-param" : " re-tag-file") + (inEdit ? " editing" : "") + (isDefaultMasked ? " re-tag-default-masked" : "");
-        tag.dataset.idx = i;
+        tag.className = "re-tag" + (isP ? " re-tag-param" : " re-tag-file") + (inEdit ? " editing" : "");
+        tag.dataset.idx = tokenIndex;
         if (isP && def) tag.style.setProperty("--re-color", def.color);
 
         if (inEdit) {
@@ -264,11 +365,11 @@
             inp.style.width = Math.max(90, m + 20) + "px";
           });
           inp.addEventListener("keydown", function (e) {
-            if (e.key === "Enter") { e.preventDefault(); commitEdit(i, inp.value.trim()); }
-            else if (e.key === "Escape") { e.preventDefault(); commitEdit(i, null, true); }
+            if (e.key === "Enter") { e.preventDefault(); commitEdit(tokenIndex, inp.value.trim()); }
+            else if (e.key === "Escape") { e.preventDefault(); commitEdit(tokenIndex, null, true); }
           });
           inp.addEventListener("blur", function () {
-            setTimeout(function () { if (editingIdx === i) commitEdit(i, inp.value.trim()); }, 120);
+            setTimeout(function () { if (editingIdx === tokenIndex) commitEdit(tokenIndex, inp.value.trim()); }, 120);
           });
         } else {
           var txt = document.createElement("span");
@@ -282,7 +383,7 @@
             del.textContent = "×";
             del.addEventListener("mousedown", function (e) {
               e.preventDefault(); e.stopPropagation();
-              tokens.splice(i, 1);
+              tokens.splice(tokenIndex, 1);
               editingIdx = -1; hidePopup(); render(); fireChange();
             });
             tag.appendChild(del);
@@ -291,10 +392,10 @@
           tag.addEventListener("click", function (e) {
             if (e.target.classList.contains("re-tag-del")) return;
             if (isDefaultMasked) { breakOverlay(); }
-            console.log("[rule-editor] tag click idx=" + i + ", editingIdx=" + editingIdx);
-            if (editingIdx >= 0 && editingIdx !== i) commitEdit(editingIdx, null);
-            if (editingIdx === i) return;
-            editingIdx = i;
+            console.log("[rule-editor] tag click idx=" + tokenIndex + ", editingIdx=" + editingIdx);
+            if (editingIdx >= 0 && editingIdx !== tokenIndex) commitEdit(editingIdx, null);
+            if (editingIdx === tokenIndex) return;
+            editingIdx = tokenIndex;
             render();
           });
         }
@@ -305,23 +406,35 @@
         if (i < displayTokens.length - 1) {
           var nextIsMasked = _usingDefaultTokens && (i + 1) >= defaultMaskStart && (i + 1) < defaultMaskEnd;
           var gapIsMasked = isDefaultMasked && nextIsMasked;
+          // A gap bordering the mask has a display-only index. Internal gaps
+          // edit the inherited rule and must reveal it; boundary gaps do not.
+          var gapTouchesDefault = isDefaultMasked || nextIsMasked;
           var gap = document.createElement("span");
-          gap.className = "re-gap" + (gapIsMasked ? " re-gap-default-masked" : "");
-          (function (pos) {
+          gap.className = "re-gap";
+          gap.addEventListener("mouseenter", scheduleDefaultOverlay);
+          gap.addEventListener("mouseleave", scheduleDefaultOverlay);
+          (function (pos, nextStoredIndex) {
             gap.addEventListener("click", function (e) {
               e.stopPropagation();
-              if (gapIsMasked) { breakOverlay(); }
+              var insertPos = Number.isInteger(nextStoredIndex) ? nextStoredIndex : pos;
+              if (gapIsMasked) {
+                breakOverlay();
+              } else if (gapTouchesDefault) {
+                var markerPos = ensureDefaultMarker();
+                if (markerPos >= 0) insertPos = nextIsMasked ? markerPos : markerPos + 1;
+                else breakOverlay();
+              }
               console.log("[rule-editor] gap click pos=" + pos + ", editingIdx=" + editingIdx);
               if (editingIdx >= 0) commitEdit(editingIdx, null);
-              tokens.splice(pos, 0, "");
-              editingIdx = pos;
+              tokens.splice(insertPos, 0, "");
+              editingIdx = insertPos;
               render();
               requestAnimationFrame(function () {
-                showPopup(container.querySelector('.re-tag[data-idx="' + pos + '"] input'), "");
+                showPopup(container.querySelector('.re-tag[data-idx="' + insertPos + '"] input'), "");
               });
             });
-          })(i + 1);
-          parentEl.appendChild(gap);
+          })(i + 1, displayTokenIndices[i + 1]);
+          (gapIsMasked ? defaultMask : (isDefaultMasked ? defaultWrapper : parentEl)).appendChild(gap);
         }
       });
 
@@ -333,8 +446,12 @@
         e.stopPropagation();
         console.log("[rule-editor] end+ click, editingIdx=" + editingIdx + ", tokensLen=" + tokens.length);
         if (editingIdx >= 0) commitEdit(editingIdx, null);
-        if (_usingDefaultTokens) { ensureDefaultTokens(); }
         var pos = tokens.length;
+        if (_usingDefaultTokens) {
+          var defaultMarkerPos = ensureDefaultMarker();
+          if (defaultMarkerPos >= 0 && defaultMarkerPos === tokens.length - 1) pos = defaultMarkerPos + 1;
+          else if (defaultMarkerPos < 0) breakOverlay();
+        }
         tokens.push("");
         editingIdx = pos;
         render();
@@ -345,6 +462,7 @@
       });
       // Appends after ALL tags — always into the wrapper if showing default
       (defaultWrapper || container).appendChild(endIns);
+      scheduleDefaultOverlay();
 
       // Placeholder when empty and not showing default
       if (!displayTokens.length) {
@@ -394,6 +512,10 @@
     /* ── Audio popup ── */
     function showPopup(anchorEl, query) {
       console.log("[rule-editor] showPopup called, query=" + JSON.stringify(query) + ", companyRelPath=" + JSON.stringify(companyRelPath));
+      if (!anchorEl) {
+        console.warn("[rule-editor] popup anchor missing; keeping inline editor active");
+        return;
+      }
       hidePopup();
       audioPopup = mkPopup(anchorEl, query || "");
       document.body.appendChild(audioPopup);
@@ -424,7 +546,7 @@
       }
 
       var tb = document.createElement("div"); tb.className = "as-toolbar";
-      tb.innerHTML = '<button>打开文件夹</button><button>刷新</button><button>上传</button>';
+      tb.innerHTML = '<button><svg class="ui-icon"><use href="#icon-folder"></use></svg>打开音频文件夹</button><button><svg class="ui-icon"><use href="#icon-refresh"></use></svg>刷新</button><button><svg class="ui-icon"><use href="#icon-upload"></use></svg>上传</button>';
       popup.appendChild(tb);
 
       var fl = document.createElement("div"); fl.className = "as-file-list";
@@ -517,10 +639,15 @@
     };
     container.setCompanyRelPath = function (p) { companyRelPath = p; };
 
+    if (typeof ResizeObserver !== "undefined") {
+      var defaultOverlayResizeObserver = new ResizeObserver(scheduleDefaultOverlay);
+      defaultOverlayResizeObserver.observe(container);
+    }
+
     // ── Blur → fold-back check ──
     container.addEventListener("focusout", function () {
       setTimeout(function () {
-        if (!container.contains(document.activeElement)) {
+        if (!container.contains(document.activeElement) && editingIdx < 0 && !audioPopup) {
           if (overlayBroken && defaultTokens && defaultTokens.length) {
             // Check if current tokens contain the complete default sequence
             var seq = LE.findSubsequence(tokens, defaultTokens);
@@ -528,9 +655,10 @@
               // Fold: replace the default subsequence
               var before = tokens.slice(0, seq.start);
               var after = tokens.slice(seq.end);
-              // For audio file fields (overlayLabel === "默认"), fold to empty (no 【默认模版】 concept)
+              // Audio-file defaults are implicit in the INI, but the editor
+              // keeps the marker locally so prefix/suffix tags retain the mask.
               if (overlayLabel === "默认") {
-                tokens = before.concat(after);
+                tokens = before.concat(["【默认模版】"]).concat(after);
               } else {
                 tokens = before.concat(["【默认模版】"]).concat(after);
               }

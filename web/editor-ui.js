@@ -166,7 +166,7 @@
   LE.renderBreadcrumb = function (viewKey) {
     var html = "";
     if (viewKey !== "L0") {
-      html += '<span class="ed-bc-item" data-nav="back">&#x2190; 返回</span>';
+      html += '<span class="ed-bc-item" data-nav="back"><svg class="ui-icon"><use href="#icon-back"></use></svg>返回</span>';
       html += '<span class="ed-bc-sep">|</span>';
     }
     if (viewKey === "L0") {
@@ -281,9 +281,9 @@
         html += '<div class="ed-card-subtitle">线路数：' + lineCount + ' | 最后修改：' + (mtimeStr || "—") + '</div>';
         html += '</div>';
         html += '<div class="ed-card-actions-col">';
-        html += '<button class="ed-btn ed-btn-ghost ed-rename-company" style="font-size:11px;padding:3px 8px">重命名</button>';
-        html += '<button class="ed-btn ed-btn-ghost ed-btn-danger ed-delete-company" style="font-size:11px;padding:3px 8px">删除</button>';
-        html += '<button class="ed-btn ed-btn-ghost ed-export-company" style="font-size:11px;padding:3px 8px">导出</button>';
+        html += '<button class="ed-btn ed-btn-ghost ed-rename-company" style="font-size:11px;padding:3px 8px"><svg class="ui-icon"><use href="#icon-rename"></use></svg>重命名</button>';
+        html += '<button class="ed-btn ed-btn-ghost ed-btn-danger ed-delete-company" style="font-size:11px;padding:3px 8px"><svg class="ui-icon"><use href="#icon-trash"></use></svg>删除</button>';
+        html += '<button class="ed-btn ed-btn-ghost ed-export-company" style="font-size:11px;padding:3px 8px"><svg class="ui-icon"><use href="#icon-download"></use></svg>导出</button>';
         html += '</div></div></div>';
       }
       listEl.innerHTML = html;
@@ -663,13 +663,13 @@
         html += '<span class="ed-card-title">' + LE.escHtml(name) + '</span>';
         html += '</div>';
         html += '<div class="ed-card-actions">';
-        html += '<a class="ed-card-edit">编辑</a>';
-        html += '<a class="ed-card-rename">重命名</a>';
-        html += '<a class="ed-card-del">删除</a>';
+        html += '<a class="ed-card-edit"><svg class="ui-icon"><use href="#icon-edit"></use></svg>编辑</a>';
+        html += '<a class="ed-card-rename"><svg class="ui-icon"><use href="#icon-rename"></use></svg>重命名</a>';
+        html += '<a class="ed-card-del"><svg class="ui-icon"><use href="#icon-trash"></use></svg>删除</a>';
         html += '<span style="color:#d8e3f1;margin:0 2px">|</span>';
-        html += '<a class="ed-card-move">移动到…</a>';
-        html += '<a class="ed-card-copy">复制到…</a>';
-        html += '<a class="ed-card-export">导出</a>';
+        html += '<a class="ed-card-move"><svg class="ui-icon"><use href="#icon-move"></use></svg>移动到…</a>';
+        html += '<a class="ed-card-copy"><svg class="ui-icon"><use href="#icon-copy"></use></svg>复制到…</a>';
+        html += '<a class="ed-card-export"><svg class="ui-icon"><use href="#icon-download"></use></svg>导出</a>';
         html += '</div>';
         html += '</div>';
       }
@@ -1058,7 +1058,7 @@
     navEl.innerHTML = tabs.map(function (t) {
       var cls = "ed-l2-tab" + (t.key === active ? " active" : "");
       var badge = errByTab[t.key] ? '<span class="ed-tab-badge">' + errByTab[t.key] + '</span>' : "";
-      return '<span class="' + cls + '" data-tab="' + t.key + '">' + t.label + badge + '</span>';
+      return '<span class="' + cls + '" data-tab="' + t.key + '"><i class="ed-l2-tab-order">' + (tabs.indexOf(t) + 1) + '</i>' + t.label + badge + '</span>';
     }).join("");
 
     navEl.querySelectorAll(".ed-l2-tab").forEach(function (tab) {
@@ -1459,19 +1459,11 @@
     var gridStyle = loopMode ? "grid-template-columns:1fr" : "grid-template-columns:1fr 1fr";
     html += '<div class="ed-station-columns" style="' + gridStyle + ';margin-top:14px" id="edStationGrid">';
 
-    html += buildStationColumn(loopMode ? "" : "上行", m.upStationsCn, m.upStationsEn, "upStationsCn", "upStationsEn");
+    html += buildStationColumn(loopMode ? "环线站点" : "上行站点", m.upStationsCn, m.upStationsEn, "upStationsCn", "upStationsEn", loopMode ? "loop" : "up", loopMode ? null : { from: "up", to: "down", label: "反向复制到下行" });
     if (!loopMode) {
-      html += buildStationColumn("下行", m.downStationsCn, m.downStationsEn, "downStationsCn", "downStationsEn");
+      html += buildStationColumn("下行站点", m.downStationsCn, m.downStationsEn, "downStationsCn", "downStationsEn", "down", { from: "down", to: "up", label: "反向复制到上行" });
     }
     html += '</div>';
-
-    // Reverse buttons
-    if (!loopMode) {
-      html += '<div style="display:flex;gap:8px;margin-top:6px">';
-      html += '<a href="#" class="ed-link ed-reverse-btn" data-from="down" data-to="up">«« 根据下行反向生成上行 ««</a>';
-      html += '<a href="#" class="ed-link ed-reverse-btn" data-from="up" data-to="down">»» 根据上行反向生成下行 »»</a>';
-      html += '</div>';
-    }
 
     container.innerHTML = html;
 
@@ -1936,8 +1928,9 @@
     });
   }
 
-  function buildStationColumn(label, stopsCn, stopsEn, cnKey, enKey) {
-    var html = '<div class="ed-station-col">' + (label ? '<h4>' + label + '</h4>' : '');
+  function buildStationColumn(label, stopsCn, stopsEn, cnKey, enKey, theme, reverse) {
+    var heading = label ? '<div class="ed-station-col-title ed-theme-' + theme + '"><h4>' + label + '</h4>' + (reverse ? '<button type="button" class="ed-btn ed-btn-ghost ed-reverse-btn" data-from="' + reverse.from + '" data-to="' + reverse.to + '">' + reverse.label + '</button>' : '') + '</div>' : '';
+    var html = '<div class="ed-station-col">' + heading;
 
     // Detect same-name stations (Chinese) for warning
     var cnSeen = {};
@@ -2054,42 +2047,40 @@
 
     var html = "";
 
-    // Up/Down same checkbox — hidden when loop mode (forced on)
+    // Same-direction mode uses the existing up-rule storage; the switch only changes presentation.
     var isLoop2 = m.mode === "loop";
     if (!isLoop2) {
-      html += '<label class="ed-checkbox"><input type="checkbox" id="edUpDownSame" ' +
-        (m.isUpDownSame ? "checked" : "") + '> 上下行相同</label>';
+      html += '<label class="ed-toggle"><input type="checkbox" id="edUpDownSame" ' +
+        (m.isUpDownSame ? "checked" : "") + '><span class="ed-toggle-track"></span><span>上下行相同</span></label>';
     }
 
+    var sameRules = isLoop2 || m.isUpDownSame;
+    var direction = LE.state._templateDirection === "down" ? "down" : "up";
+    if (!sameRules) {
+      html += '<div class="ed-template-direction-group"><div class="ed-template-tabs"><button type="button" class="ed-template-tab ed-theme-up' + (direction === "up" ? " active" : "") + '" data-template-dir="up">上行</button><button type="button" class="ed-template-tab ed-theme-down' + (direction === "down" ? " active" : "") + '" data-template-dir="down">下行</button></div><div class="ed-template-direction-body">';
+    }
+    var prefix = sameRules ? "up" : direction;
+    var theme = sameRules ? "blue" : direction;
     var groups = [
       { title: "首站规则", fields: [
-        { key: "upFirstDepart", label: "上行首站预报规则", subContext: "first_depart" },
-        { key: "downFirstDepart", label: "下行首站预报规则", subContext: "first_depart", hideIfSame: true },
+        { key: prefix + "FirstDepart", label: "首站预报规则", subContext: "first_depart" },
       ]},
       { title: "普通站规则", fields: [
-        { key: "upDepart", label: "默认上行预报规则", subContext: "station_depart" },
-        { key: "upArrive", label: "默认上行到站播报规则", subContext: "station_arrive" },
-        { key: "downDepart", label: "默认下行预报规则", subContext: "station_depart", hideIfSame: true },
-        { key: "downArrive", label: "默认下行到站播报规则", subContext: "station_arrive", hideIfSame: true },
+        { key: prefix + "Depart", label: "默认预报规则", subContext: "station_depart" },
+        { key: prefix + "Arrive", label: "默认到站播报规则", subContext: "station_arrive" },
       ]},
       { title: "终点站规则", fields: [
-        { key: "upTerminalDepart", label: "上行终点站预报规则", subContext: "terminal_depart" },
-        { key: "upTerminalArrive", label: "上行终点站报站规则", subContext: "terminal_arrive" },
-        { key: "downTerminalDepart", label: "下行终点站预报规则", subContext: "terminal_depart", hideIfSame: true },
-        { key: "downTerminalArrive", label: "下行终点站报站规则", subContext: "terminal_arrive", hideIfSame: true },
+        { key: prefix + "TerminalDepart", label: "终点站预报规则", subContext: "terminal_depart" },
+        { key: prefix + "TerminalArrive", label: "终点站报站规则", subContext: "terminal_arrive" },
       ]},
     ];
 
     groups.forEach(function (group, gi) {
       html += '<div style="margin-bottom:24px">';
-      html += '<h4 style="font-size:13px;color:#69778d;margin:0 0 6px">' + group.title + '</h4>';
+      html += '<h4 class="ed-section-title ed-theme-' + theme + '">' + group.title + '</h4>';
       group.fields.forEach(function (field) {
-        if (field.hideIfSame && m.isUpDownSame) return;
-        var label = m.isUpDownSame ? field.label.replace("下行", "").replace("上行", "") : field.label;
-        var isFirstOrTerm = field.key.indexOf("First") >= 0 || field.key.indexOf("Terminal") >= 0;
-        var label2 = (m.isUpDownSame && !isFirstOrTerm) ? label.replace("预报规则", "预报规则").replace("报站规则", "预报规则") : label;
         html += '<div class="ed-form-group">';
-        html += '<label class="ed-form-label">' + label2 + '</label>';
+        html += '<label class="ed-form-label">' + field.label + '</label>';
         html += '<div id="edTpl_' + field.key + '" class="ed-rule-editor-slot"></div>';
         {
           html += '<div style="margin-top:4px;font-size:11px">';
@@ -2101,6 +2092,7 @@
       });
       html += '</div>';
     });
+    if (!sameRules) html += '</div></div>';
 
     {
       html += '<div style="padding-top:8px;border-top:1px solid #e5edf6">';
@@ -2113,7 +2105,6 @@
     // Render Rule Editors
     groups.forEach(function (group) {
       group.fields.forEach(function (field) {
-        if (field.hideIfSame && m.isUpDownSame) return;
         var slot = container.querySelector("#edTpl_" + field.key);
         if (!slot) return;
         console.log("[editor-ui] Creating rule-editor for templates." + field.key + ", company=" + company);
@@ -2142,6 +2133,12 @@
         LE.renderL2();
       });
     }
+    container.querySelectorAll("[data-template-dir]").forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        LE.state._templateDirection = tab.dataset.templateDir;
+        LE.renderL2();
+      });
+    });
 
     // Clear buttons
     container.querySelectorAll(".ed-clear-rule").forEach(function (a) {
@@ -2893,8 +2890,8 @@
   function buildMediaPanelHTML() {
     return '<div style="margin-bottom:8px;display:flex;gap:8px">' +
       '<input id="edMediaSearch" class="ed-form-input" placeholder="搜索文件名..." style="flex:1">' +
-      '<button class="ed-btn ed-btn-ghost" id="edMediaRefresh">刷新</button>' +
-      '<button class="ed-btn ed-btn-ghost" id="edMediaOpenFolder">在系统中打开</button></div>' +
+      '<button class="ed-btn ed-btn-ghost" id="edMediaRefresh"><svg class="ui-icon"><use href="#icon-refresh"></use></svg>刷新</button>' +
+      '<button class="ed-btn ed-btn-ghost" id="edMediaOpenFolder"><svg class="ui-icon"><use href="#icon-folder"></use></svg>在系统中打开</button></div>' +
       '<div id="edMediaDropZone" class="ed-media-drop-zone">' +
         '<span class="ed-media-drop-icon">+</span>' +
         '<span>拖放音频文件到此处上传，或点击选择文件</span>' +
@@ -2906,6 +2903,7 @@
         '<span class="ed-media-float-sep"></span>' +
         '<button id="edMediaBatchCopy">批量复制</button>' +
         '<button id="edMediaBatchMove">批量移动</button>' +
+        '<button id="edMediaBatchDownload">批量下载</button>' +
         '<button id="edMediaBatchDel" class="ed-media-float-danger">批量删除</button>' +
       '</div>' +
       '<div id="edMediaTableContainer"><div class="ed-empty">加载中...</div></div>';
@@ -2956,6 +2954,25 @@
       return files;
     }
 
+    function downloadMedia(files) {
+      if (!files.length) { LE.toast("请先选择文件", "warn"); return; }
+      fetch("/api/file/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ relPaths: files.map(function (file) { return company + "/" + file; }) }),
+      }).then(function (resp) {
+        if (!resp.ok) throw new Error("下载失败");
+        return resp.blob();
+      }).then(function (blob) {
+        var a = document.createElement("a");
+        var url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = files.length === 1 ? files[0] : "音频文件.zip";
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+      }).catch(function (e) { LE.toast("下载失败：" + e.message, "error"); });
+    }
+
     function batchUploadFiles(files, onDone) {
       var total = files.length;
       var done = 0;
@@ -2981,7 +2998,7 @@
 
     function loadMedia() {
       LE.api.listDir(company, true).then(function (resp) {
-        var items = resp.items || [];
+        var items = (resp.items || []).filter(function (item) { return !item.isDir && !/\.ini$/i.test(item.name || ""); });
         var q = (root.querySelector("#edMediaSearch").value || "").toLowerCase();
         if (q) items = items.filter(function (i) { return i.name.toLowerCase().indexOf(q) >= 0; });
 
@@ -3014,9 +3031,10 @@
             '<td style="font-size:11px;color:#69778d">' + ext.toUpperCase() + '</td>' +
             '<td style="font-size:11px;color:#69778d">' + mtimeStr + '</td>' +
             '<td class="ed-media-actions">' +
-              '<span class="ed-media-copy" data-file="' + LE.escHtml(item.name) + '">复制</span>' +
-              '<span class="ed-media-move" data-file="' + LE.escHtml(item.name) + '">移动</span>' +
-              '<span class="ed-media-del" data-file="' + LE.escHtml(item.name) + '">删除</span>' +
+              '<button type="button" class="ed-media-copy" title="复制到" aria-label="复制到" data-file="' + LE.escHtml(item.name) + '"><svg class="ui-icon"><use href="#icon-copy"></use></svg></button>' +
+              '<button type="button" class="ed-media-move" title="移动到" aria-label="移动到" data-file="' + LE.escHtml(item.name) + '"><svg class="ui-icon"><use href="#icon-move"></use></svg></button>' +
+              '<button type="button" class="ed-media-download" title="导出" aria-label="导出" data-file="' + LE.escHtml(item.name) + '"><svg class="ui-icon"><use href="#icon-download"></use></svg></button>' +
+              '<button type="button" class="ed-media-del" title="删除" aria-label="删除" data-file="' + LE.escHtml(item.name) + '"><svg class="ui-icon"><use href="#icon-trash"></use></svg></button>' +
             '</td></tr>';
         });
         html += '</tbody></table>';
@@ -3074,6 +3092,9 @@
           btn.addEventListener("click", function () {
             showMediaCopyMoveDialog("move", company + "/" + btn.dataset.file, btn.dataset.file, company, function () { loadMedia(); });
           });
+        });
+        root.querySelectorAll(".ed-media-download").forEach(function (btn) {
+          btn.addEventListener("click", function () { downloadMedia([btn.dataset.file]); });
         });
 
         updateFloatBar();
@@ -3155,6 +3176,7 @@
       if (!files.length) { LE.toast("请先选择文件", "warn"); return; }
       showMediaCopyMoveDialog("move", files.map(function (f) { return company + "/" + f; }), files[0], company, function () { loadMedia(); }, true);
     });
+    root.querySelector("#edMediaBatchDownload").addEventListener("click", function () { downloadMedia(getCheckedFiles()); });
     root.querySelector("#edMediaBatchDel").addEventListener("click", function () {
       var files = getCheckedFiles();
       if (!files.length) { LE.toast("请先选择文件", "warn"); return; }

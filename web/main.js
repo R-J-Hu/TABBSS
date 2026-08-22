@@ -1458,6 +1458,7 @@ function renderTipButtons() {
   const tips = state.route?.tips || [];
   const labels = state.route?.tip_labels || [];
   const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
+  let rendered = 0;
   tips.forEach((val, idx) => {
     if (!val || val === "【无】") return;
     const btn = document.createElement("button");
@@ -1468,7 +1469,9 @@ function renderTipButtons() {
     btn.innerHTML = `<i>${keys[idx] || ""}</i><span>${name}</span>`;
     btn.addEventListener("click", () => playTipByIndex(idx + 1));
     tipButtons.appendChild(btn);
+    rendered += 1;
   });
+  if (!rendered) tipButtons.innerHTML = '<p class="tip-empty">未设置手按提示语。</p>';
 }
 
 function renderQueue(queue, activeIndex = -1, completedThrough = -1) {
