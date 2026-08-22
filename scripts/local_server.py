@@ -827,6 +827,7 @@ class LocalHandler(SimpleHTTPRequestHandler):
 
         zip_data = None
         target_company = ""
+        imported_filename = ""
 
         for i, part_bytes in enumerate(parts):
             print(f"[import] --- part {i}: len={len(part_bytes)} ---")
@@ -867,10 +868,17 @@ class LocalHandler(SimpleHTTPRequestHandler):
                     print("[import] WARN: empty file_data")
                     continue
                 zip_data = file_data
+                imported_filename = fn
 
         if not zip_data:
             print("[import] ERROR: no file part found in multipart body")
             self._send_json(400, {"ok": False, "error": "未在请求中找到文件"})
+            return
+
+        # V1.6: 导入仅支持 .tabl 线路包（zip 是内部容器格式，不再接受裸 .zip）
+        if not imported_filename.lower().endswith(".tabl"):
+            print(f"[import] ERROR: 不支持的文件类型: {imported_filename}（仅支持 .tabl）")
+            self._send_json(400, {"ok": False, "error": "仅支持导入 .tabl 线路包"})
             return
 
         print(f"[import] extracted zip_data len={len(zip_data)}, magic={zip_data[:4].hex()}, company={target_company}")
@@ -933,6 +941,7 @@ class LocalHandler(SimpleHTTPRequestHandler):
         try:
             with zipfile.ZipFile(io.BytesIO(zip_data), "r") as zf:
                 imported_ini = []
+                zip_ini_rels = []   # ALL .ini in the zip (newly imported + skipped-as-existing)
                 all_names = zf.namelist()
                 print(f"[import] zip contains {len(all_names)} entries: {all_names}")
                 for name in all_names:
@@ -952,6 +961,7 @@ class LocalHandler(SimpleHTTPRequestHandler):
                         self._validate_leaf_name(dest.name)
                         if safe_name.endswith(".ini") and conflict_mode == "skip" and dest.exists():
                             print(f"[import] skip existing: {safe_name}")
+                            zip_ini_rels.append(safe_name)
                             continue
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         content = zf.read(name)
@@ -959,11 +969,17 @@ class LocalHandler(SimpleHTTPRequestHandler):
                         dest.write_bytes(content)
                         if safe_name.endswith(".ini"):
                             imported_ini.append(safe_name)
+                            zip_ini_rels.append(safe_name)
                     except Exception as fe:
                         print(f"[import] ERROR writing {safe_name}: {fe}")
                         raise
 
-            if imported_ini:
+            # Ensure target company + ALL zip INIs are registered in index —
+            # including INIs skipped as already-existing, so a company whose files
+            # exist on disk but whose index entry is missing (e.g. a previous
+            # import whose index write was interrupted, or an index that was later
+            # reverted) gets re-registered instead of staying permanently "未注册".
+            if zip_ini_rels:
                 try:
                     index_path = self.data_root / "index.json"
                     existing_index = {"companies": []}
@@ -975,7 +991,7 @@ class LocalHandler(SimpleHTTPRequestHandler):
                     if not target:
                         target = {"name": target_company, "lines": []}
                         companies.append(target)
-                    for ini_rel in imported_ini:
+                    for ini_rel in zip_ini_rels:
                         line_name = ini_rel.split("/")[-1].replace(".ini", "")
                         target["lines"] = [l for l in target["lines"] if l["file"] != ini_rel]
                         target["lines"].append({"name": line_name, "file": ini_rel})
@@ -987,6 +1003,11 @@ class LocalHandler(SimpleHTTPRequestHandler):
                     print(f"[import] index update error: {e}")
                     import traceback
                     traceback.print_exc()
+                    # Surface the failure — files are already written, but do NOT
+                    # return silent success (would leave the company unregistered /
+                    # shown as "未注册" in the RELEASE tooling).
+                    self._send_json(500, {"ok": False, "error": f"文件已写入，但公司注册失败：{e}"})
+                    return
 
             self._send_json(200, {"ok": True, "imported": imported_ini, "company": target_company})
         except zipfile.BadZipFile:

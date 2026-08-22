@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>档案库报站器 内测版</title>
-  <link rel="stylesheet" href="./style.css?v=20260823&b=247" />
-  <link rel="stylesheet" href="./editor.css?v=20260823&b=247" />
-  <link rel="stylesheet" href="./ui-redesign.css?v=20260823&b=247" />
+  <link rel="stylesheet" href="./style.css?v=20260823&b=251" />
+  <link rel="stylesheet" href="./editor.css?v=20260823&b=251" />
+  <link rel="stylesheet" href="./ui-redesign.css?v=20260823&b=251" />
 </head>
 <body>
   <svg class="icon-defs" aria-hidden="true" focusable="false">
@@ -27,6 +27,7 @@
     <symbol id="icon-move" viewBox="0 0 24 24"><path d="M4 3h9l4 4v6M13 3v5h5M4 9v12h9"/><path d="M12 17h8m-3-3 3 3-3 3"/></symbol>
     <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="13" rx="1"/><path d="M16 8V4H5a1 1 0 0 0-1 1v11h4"/></symbol>
     <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m7 9.5 5 5 5-5"/></symbol>
     <symbol id="icon-next-station" viewBox="0 0 24 24"><path d="M4 17 10 11 4 5M11 17l6-6-6-6" transform="rotate(45 12 11)"/></symbol>
   </svg>
   <main class="app" id="appRoot">
@@ -37,7 +38,7 @@
         <button type="button" id="devPanelToggle" class="rail-nav-item dev-nav-item"><i aria-hidden="true">🔨</i><span>开发者模式</span></button>
       </nav>
       <footer class="rail-footer">
-        <small>V1.6 Build 247<br>交通档案库版权所有</small>
+        <small>V1.6 Build 251<br>交通档案库版权所有</small>
         <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" class="rail-social rail-social-bilibili" aria-label="交通档案库 Bilibili 主页"><img id="bilibiliIcon" src="" alt=""><span>BILIBILI 主页</span></a>
         <a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener" class="rail-social rail-social-gitee"><img id="giteeIcon" src="" alt=""><span>Gitee 主页</span></a>
         <a href="https://github.com/R-J-Hu/TABBSS/" target="_blank" rel="noopener" class="rail-social rail-social-github"><img id="githubIcon" src="" alt=""><span>Github 主页</span></a>
@@ -52,7 +53,7 @@
           <label id="companyRouteWrap" class="topbar-select-label"><span>公司</span><select id="companyRouteSelect"></select></label>
           <label class="topbar-select-label line-select"><span>线路</span><select id="routeSelect"></select></label>
         </div>
-        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 247 2026-08-23 02:01:17</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
+        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 251 2026-08-23 03:13:23</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
       </header>
       <p id="editionWarning" class="edition-warning"></p>
 
@@ -142,7 +143,7 @@
 
       <p class="version-tag">（Build 242 2026-08-23）修复 L2 车站标题左对齐：色条、标题、右侧按钮使用固定三列。</p>
 
-      <p class="version-tag">（Build 243 2026-08-23）默认规则遮罩回归修正。<br>（Build 244 2026-08-23）默认规则遮罩只改变视觉层：保留既有首部、内部、尾部新增标签交互；修复默认模板前后标签并存时的索引错位、异常换行与编辑回折。<br>（Build 245 2026-08-23）默认音频规则在前后新增时保留默认遮罩，保存时仅写入新增标签。<br>（Build 246 2026-08-23）默认遮罩彻底退出 tag 流式布局，修复首尾空行及后续 tag 无法紧随的问题。<br>（Build 247 2026-08-23）修复默认序列与后续 tag 之间新增时的显示/数据索引错位及空锚点异常。</p>
+      <p class="version-tag">（Build 243 2026-08-23）默认规则遮罩回归修正。<br>（Build 244 2026-08-23）默认规则遮罩只改变视觉层：保留既有首部、内部、尾部新增标签交互；修复默认模板前后标签并存时的索引错位、异常换行与编辑回折。<br>（Build 245 2026-08-23）默认音频规则在前后新增时保留默认遮罩，保存时仅写入新增标签。<br>（Build 246 2026-08-23）默认遮罩彻底退出 tag 流式布局，修复首尾空行及后续 tag 无法紧随的问题。<br>（Build 247 2026-08-23）修复默认序列与后续 tag 之间新增时的显示/数据索引错位及空锚点异常。<br>（Build 248 2026-08-23）Editor Audio Selector 参数按新规范收敛：全局报站规则/各站特殊规则/手按服务语仅提供 8 个中英文站名参数（本站中文/本站英文/下站中文/下站英文/起始站中文/起始站英文/终点站中文/终点站英文），并按各编辑框提供矩阵禁用（首站/普通/终点预报无本站，终点到站无下站，本站中文语音文件无本站中文、本站英文语音文件无本站英文）；取消【本站中文文件】【本站英文文件】【普通站预报模板】【普通站到站模板】可选 tag（旧数据中已保存的 token 仍可识别渲染）；导入目标公司默认值调整：L0 导入默认「+ 新建公司」，L1 导入默认当前公司；导入线路包仅支持 .tabl 不再接受 .zip（前端 accept 与服务端双重校验）。<br>（Build 249 2026-08-23）Editor 两处下拉按钮改用几何居中的 SVG 箭头；默认规则遮罩改为高透明中性冷灰。<br>（Build 250 2026-08-23）Editor 弹窗统一白色背景，并复用设置面板同款 SVG 关闭按钮。<br>（Build 251 2026-08-23）修复 TABL 导入的公司永久「未注册」：`_do_import_zip` 原先只注册「新写入」的 .ini，当公司目录已存在同名 .ini 且冲突模式为 skip 时全部跳过、`imported_ini` 为空导致 index.json 更新整体被跳过——若某公司的文件已落地但 index 条目丢失（如沈阳浑南现代有轨电车：目录 255 文件在、index 无条目），重复导入永远无法重新注册。现改为收集 zip 内全部 .ini（含跳过项）并集注册，index 更新异常不再静默吞掉（返回 500「文件已写入，但公司注册失败」）。</p>
 
       <section class="debug-panel" id="debugPanel">
       <h2>Dev 调试信息</h2>
@@ -221,7 +222,7 @@
           <button id="edAddCompanyBtn" class="ed-btn"><svg class="ui-icon"><use href="#icon-plus"></use></svg><span>添加公司</span></button>
           <button id="edL0ImportBtn" class="ed-btn ed-btn-ghost"><svg class="ui-icon"><use href="#icon-upload"></use></svg><span>导入线路文件</span></button>
           <div class="ed-dropdown" id="edL0ImportOtherDropdown">
-            <button id="edL0ImportOtherBtn" class="ed-btn ed-btn-ghost"><span>从其他报站器导入线路</span><span class="ed-chevron">⌄</span></button>
+            <button id="edL0ImportOtherBtn" class="ed-btn ed-btn-ghost"><span>从其他报站器导入线路</span><svg class="ui-icon ed-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></button>
             <div class="ed-dropdown-menu" id="edL0ImportOtherMenu">
               <button data-action="haixia">导入海峡报站器线路（兼容模式）</button>
               <button data-action="lanshi">导入蓝斯报站器线路</button>
@@ -236,7 +237,7 @@
         <div class="ed-list" id="edLineList"></div>
         <div class="ed-page-actions">
           <div class="ed-dropdown" id="edAddLineDropdown">
-            <button id="edAddLineBtn" class="ed-btn"><svg class="ui-icon"><use href="#icon-plus"></use></svg><span>添加线路</span><span class="ed-chevron">⌄</span></button>
+            <button id="edAddLineBtn" class="ed-btn"><svg class="ui-icon"><use href="#icon-plus"></use></svg><span>添加线路</span><svg class="ui-icon ed-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></button>
             <div class="ed-dropdown-menu" id="edAddLineMenu">
               <button data-action="blank">从空白创建</button>
               <button data-action="template">以现有线路为模版创建</button>
@@ -276,7 +277,7 @@
       <h3>交通档案库报站模拟器</h3>
       <p>面向公交报站线路文件的本地管理、编辑与播放模拟工具。</p>
       <dl>
-        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6 (Build 247)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
+        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6 (Build 251)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
         <div><dt>作者</dt><dd>@爱困的RJ（R.J. Hu）</dd></div>
         <div><dt>Bilibili 主页</dt><dd><a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener">点击前往</a></dd></div>
         <div><dt>Gitee 主页</dt><dd><a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener">点击前往</a></dd></div>
@@ -285,10 +286,10 @@
     </div>
   </aside>
 
-  <script src="./editor-core.js?v=20260823&b=247"></script>
-  <script src="./editor-components.js?v=20260823&b=247"></script>
-  <script src="./main.js?v=20260823&b=247"></script>
-  <script src="./editor-ui.js?v=20260823&b=247"></script>
-  <script src="./panel-controller.js?v=20260823&b=247"></script>
+  <script src="./editor-core.js?v=20260823&b=251"></script>
+  <script src="./editor-components.js?v=20260823&b=251"></script>
+  <script src="./main.js?v=20260823&b=251"></script>
+  <script src="./editor-ui.js?v=20260823&b=251"></script>
+  <script src="./panel-controller.js?v=20260823&b=251"></script>
 </body>
 </html>

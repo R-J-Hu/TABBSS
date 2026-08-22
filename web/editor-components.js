@@ -4,9 +4,10 @@
   if (!LE) return;
   console.log("[editor-components] Initializing...");
 
+  // V1.6 规范：Audio Selector 只提供 8 个中/英文站名参数（见
+  // insider_resource/补充说明-各编辑框内Audio Selector提供的参数.md）。
+  // 【本站中文文件】【本站英文文件】【普通站预报模板】【普通站到站模板】不再作为可选 tag。
   var PARAM_DEFS = [
-    { key: "【本站中文文件】", label: "本站中文文件", color: "#22c55e" },
-    { key: "【本站英文文件】", label: "本站英文文件", color: "#4ade80" },
     { key: "【本站中文】", label: "本站中文", color: "#22c55e" },
     { key: "【本站英文】", label: "本站英文", color: "#4ade80" },
     { key: "【下站中文】", label: "下站中文", color: "#f97316" },
@@ -15,24 +16,35 @@
     { key: "【起始站英文】", label: "起始站英文", color: "#c084fc" },
     { key: "【终点站中文】", label: "终点站中文", color: "#06b6d4" },
     { key: "【终点站英文】", label: "终点站英文", color: "#67e8f9" },
-    { key: "【普通站预报模板】", label: "普通站预报模板", color: "#f59e0b" },
-    { key: "【普通站到站模板】", label: "普通站到站模板", color: "#d97706" },
   ];
 
-  // NOTE: context is base; subContext merged on top. 默认模版 only in station_depart/station_arrive.
-  var CONTEXT_DISABLED = {
-    "global_template": [],
-    "station_depart": ["【普通站预报模板】", "【普通站到站模板】"],
-    "station_arrive": ["【普通站预报模板】", "【普通站到站模板】"],
-    "station_zh_audio": ["【普通站预报模板】", "【普通站到站模板】"],
-    "station_en_audio": ["【普通站预报模板】", "【普通站到站模板】"],
-    "terminal_depart": ["【下站中文】", "【下站英文】", "【普通站到站模板】"],
-    "terminal_arrive": ["【下站中文】", "【下站英文】", "【普通站预报模板】"],
-    "first_depart": ["【普通站到站模板】"],
-    "tip": ["【普通站预报模板】", "【普通站到站模板】"],
+  // 已取消的可选 tag：仍能识别/渲染旧数据里已保存的 token，但不在弹窗中提供。
+  var LEGACY_PARAMS = {
+    "【本站中文文件】": { label: "本站中文文件", color: "#22c55e" },
+    "【本站英文文件】": { label: "本站英文文件", color: "#4ade80" },
+    "【普通站预报模板】": { label: "普通站预报模板", color: "#f59e0b" },
+    "【普通站到站模板】": { label: "普通站到站模板", color: "#d97706" },
   };
 
-  function paramDef(k) { return PARAM_DEFS.find(function (p) { return p.key === k; }); }
+  // 每个编辑框提供的参数矩阵（Y=提供）。context 为基础层，subContext 覆盖叠加。
+  var CONTEXT_DISABLED = {
+    "global_template": [],
+    "first_depart": ["【本站中文】", "【本站英文】"],              // 首站预报：无本站
+    "station_depart": ["【本站中文】", "【本站英文】"],            // 普通预报：无本站
+    "station_arrive": [],                                         // 普通到站：全部
+    "terminal_depart": ["【本站中文】", "【本站英文】"],          // 终点预报：无本站
+    "terminal_arrive": ["【下站中文】", "【下站英文】"],          // 终点到站：无下站
+    "station_zh_audio": ["【本站中文】"],                          // 本站中文语音文件：无本站中文
+    "station_en_audio": ["【本站英文】"],                          // 本站英文语音文件：无本站英文
+    "tip": [],                                                    // 手按服务语：全部
+  };
+
+  function paramDef(k) {
+    var d = PARAM_DEFS.find(function (p) { return p.key === k; });
+    if (d) return d;
+    var l = LEGACY_PARAMS[k];
+    return l ? { key: k, label: l.label, color: l.color } : undefined;
+  }
 
   /* ═══════════════════ RULE EDITOR ═══════════════════ */
   LE.createRuleEditor = function (config) {
