@@ -528,6 +528,8 @@
           '<span class="ed-haixia-bold-orange">档案库报站模拟器</span>」的海峡兼容文件夹。' +
         '</p>' +
         '<img id="haixiaGuideImg" class="ed-haixia-guide-img" src="" alt="操作图示">' +
+        '<p class="ed-haixia-followup">复制完成后，将模式切换到海峡兼容模式即可看到海峡报站器程序。注意：海峡报站器程序暂只支持播放，不支持编辑。后续会支持将海峡报站器程序导入到档案库模式，敬请期待。</p>' +
+        '<img class="ed-haixia-guide-img" src="./res/切换海峡模式.png" alt="切换到海峡兼容模式示意">' +
       '</div>' +
       '<div class="update-modal-footer">' +
         '<button type="button" class="update-modal-btn update-modal-btn-ghost" id="hxCancelBtn">关闭</button>' +

@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>档案库报站器 内测版</title>
-  <link rel="stylesheet" href="./style.css?v=20260823&b=251" />
-  <link rel="stylesheet" href="./editor.css?v=20260823&b=251" />
-  <link rel="stylesheet" href="./ui-redesign.css?v=20260823&b=251" />
+  <link rel="stylesheet" href="./style.css?v=20260823&b=254" />
+  <link rel="stylesheet" href="./editor.css?v=20260823&b=254" />
+  <link rel="stylesheet" href="./ui-redesign.css?v=20260823&b=254" />
 </head>
 <body>
   <svg class="icon-defs" aria-hidden="true" focusable="false">
@@ -29,6 +29,7 @@
     <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/></symbol>
     <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m7 9.5 5 5 5-5"/></symbol>
     <symbol id="icon-next-station" viewBox="0 0 24 24"><path d="M4 17 10 11 4 5M11 17l6-6-6-6" transform="rotate(45 12 11)"/></symbol>
+    <symbol id="icon-phase-next" viewBox="0 0 24 24"><path d="m2.5 4 8 8-8 8M13.5 4l8 8-8 8"/></symbol>
   </svg>
   <main class="app" id="appRoot">
     <aside class="brand-rail">
@@ -38,7 +39,7 @@
         <button type="button" id="devPanelToggle" class="rail-nav-item dev-nav-item"><i aria-hidden="true">🔨</i><span>开发者模式</span></button>
       </nav>
       <footer class="rail-footer">
-        <small>V1.6 Build 251<br>交通档案库版权所有</small>
+        <small>V1.6 Build 254<br>交通档案库版权所有</small>
         <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" class="rail-social rail-social-bilibili" aria-label="交通档案库 Bilibili 主页"><img id="bilibiliIcon" src="" alt=""><span>BILIBILI 主页</span></a>
         <a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener" class="rail-social rail-social-gitee"><img id="giteeIcon" src="" alt=""><span>Gitee 主页</span></a>
         <a href="https://github.com/R-J-Hu/TABBSS/" target="_blank" rel="noopener" class="rail-social rail-social-github"><img id="githubIcon" src="" alt=""><span>Github 主页</span></a>
@@ -53,16 +54,16 @@
           <label id="companyRouteWrap" class="topbar-select-label"><span>公司</span><select id="companyRouteSelect"></select></label>
           <label class="topbar-select-label line-select"><span>线路</span><select id="routeSelect"></select></label>
         </div>
-        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 251 2026-08-23 03:13:23</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
+        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 254 2026-08-23 14:49:39</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
       </header>
       <p id="editionWarning" class="edition-warning"></p>
 
       <section class="status-card">
         <div class="status-summary">
-          <div id="phaseDisplay" class="phase-display arrival"><span class="phase-icon"><svg class="phase-arrival-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.4 7-13A7 7 0 1 0 5 9c0 6.6 7 13 7 13Z"/><circle cx="12" cy="9" r="2.8"/></svg><svg class="phase-heading-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-next-station"></use></svg></span><b id="phaseLabel">到站 ARRIVING</b></div>
+          <div id="phaseDisplay" class="phase-display arrival"><span class="phase-icon"><svg class="phase-arrival-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.4 7-13A7 7 0 1 0 5 9c0 6.6 7 13 7 13Z"/><circle cx="12" cy="9" r="2.8"/></svg><svg class="phase-heading-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-phase-next"></use></svg></span><b id="phaseLabel">到站 ARRIVING</b></div>
           <h1 id="currentStationDisplay">—</h1>
           <p id="currentStationEnDisplay" class="station-en"></p>
-          <label class="volume-control"><span aria-hidden="true">♬</span><input id="volumeControl" type="range" min="0" max="100" value="62" aria-label="播放音量"><output id="volumeOutput">62%</output></label>
+          <label class="volume-control"><svg class="volume-icon" aria-hidden="true"><use href="#icon-broadcast"></use></svg><input id="volumeControl" type="range" min="0" max="100" value="62" aria-label="播放音量"><output id="volumeOutput">62%</output></label>
           <div class="runtime-controls" hidden><span id="stopNumberDisplay">1</span><span id="stopTotalDisplay">0</span><select id="stationJumpSelect" aria-label="跳站（到站态）"></select></div>
         </div>
         <div class="route-visual">
@@ -143,7 +144,9 @@
 
       <p class="version-tag">（Build 242 2026-08-23）修复 L2 车站标题左对齐：色条、标题、右侧按钮使用固定三列。</p>
 
-      <p class="version-tag">（Build 243 2026-08-23）默认规则遮罩回归修正。<br>（Build 244 2026-08-23）默认规则遮罩只改变视觉层：保留既有首部、内部、尾部新增标签交互；修复默认模板前后标签并存时的索引错位、异常换行与编辑回折。<br>（Build 245 2026-08-23）默认音频规则在前后新增时保留默认遮罩，保存时仅写入新增标签。<br>（Build 246 2026-08-23）默认遮罩彻底退出 tag 流式布局，修复首尾空行及后续 tag 无法紧随的问题。<br>（Build 247 2026-08-23）修复默认序列与后续 tag 之间新增时的显示/数据索引错位及空锚点异常。<br>（Build 248 2026-08-23）Editor Audio Selector 参数按新规范收敛：全局报站规则/各站特殊规则/手按服务语仅提供 8 个中英文站名参数（本站中文/本站英文/下站中文/下站英文/起始站中文/起始站英文/终点站中文/终点站英文），并按各编辑框提供矩阵禁用（首站/普通/终点预报无本站，终点到站无下站，本站中文语音文件无本站中文、本站英文语音文件无本站英文）；取消【本站中文文件】【本站英文文件】【普通站预报模板】【普通站到站模板】可选 tag（旧数据中已保存的 token 仍可识别渲染）；导入目标公司默认值调整：L0 导入默认「+ 新建公司」，L1 导入默认当前公司；导入线路包仅支持 .tabl 不再接受 .zip（前端 accept 与服务端双重校验）。<br>（Build 249 2026-08-23）Editor 两处下拉按钮改用几何居中的 SVG 箭头；默认规则遮罩改为高透明中性冷灰。<br>（Build 250 2026-08-23）Editor 弹窗统一白色背景，并复用设置面板同款 SVG 关闭按钮。<br>（Build 251 2026-08-23）修复 TABL 导入的公司永久「未注册」：`_do_import_zip` 原先只注册「新写入」的 .ini，当公司目录已存在同名 .ini 且冲突模式为 skip 时全部跳过、`imported_ini` 为空导致 index.json 更新整体被跳过——若某公司的文件已落地但 index 条目丢失（如沈阳浑南现代有轨电车：目录 255 文件在、index 无条目），重复导入永远无法重新注册。现改为收集 zip 内全部 .ini（含跳过项）并集注册，index 更新异常不再静默吞掉（返回 500「文件已写入，但公司注册失败」）。</p>
+      <p class="version-tag">（Build 243 2026-08-23）默认规则遮罩回归修正。<br>（Build 244 2026-08-23）默认规则遮罩只改变视觉层：保留既有首部、内部、尾部新增标签交互；修复默认模板前后标签并存时的索引错位、异常换行与编辑回折。<br>（Build 245 2026-08-23）默认音频规则在前后新增时保留默认遮罩，保存时仅写入新增标签。<br>（Build 246 2026-08-23）默认遮罩彻底退出 tag 流式布局，修复首尾空行及后续 tag 无法紧随的问题。<br>（Build 247 2026-08-23）修复默认序列与后续 tag 之间新增时的显示/数据索引错位及空锚点异常。<br>（Build 248 2026-08-23）Editor Audio Selector 参数按新规范收敛：全局报站规则/各站特殊规则/手按服务语仅提供 8 个中英文站名参数（本站中文/本站英文/下站中文/下站英文/起始站中文/起始站英文/终点站中文/终点站英文），并按各编辑框提供矩阵禁用（首站/普通/终点预报无本站，终点到站无下站，本站中文语音文件无本站中文、本站英文语音文件无本站英文）；取消【本站中文文件】【本站英文文件】【普通站预报模板】【普通站到站模板】可选 tag（旧数据中已保存的 token 仍可识别渲染）；导入目标公司默认值调整：L0 导入默认「+ 新建公司」，L1 导入默认当前公司；导入线路包仅支持 .tabl 不再接受 .zip（前端 accept 与服务端双重校验）。<br>（Build 249 2026-08-23）Editor 两处下拉按钮改用几何居中的 SVG 箭头；默认规则遮罩改为高透明中性冷灰。<br>（Build 250 2026-08-23）Editor 弹窗统一白色背景，并复用设置面板同款 SVG 关闭按钮。<br>（Build 251 2026-08-23）修复 TABL 导入的公司永久「未注册」：`_do_import_zip` 原先只注册「新写入」的 .ini，当公司目录已存在同名 .ini 且冲突模式为 skip 时全部跳过、`imported_ini` 为空导致 index.json 更新整体被跳过——若某公司的文件已落地但 index 条目丢失（如沈阳浑南现代有轨电车：目录 255 文件在、index 无条目），重复导入永远无法重新注册。现改为收集 zip 内全部 .ini（含跳过项）并集注册，index 更新异常不再静默吞掉（返回 500「文件已写入，但公司注册失败」）。<br>（Build 252 2026-08-23）修复真实升级与模拟升级体验不一致：两者本使用同一个升级弹窗（含下载进度条），但真实升级在 CDN 慢速/连接卡顿时进度条停在 0% 且无任何反馈，观感上像「没有下载进度」。现在点击「下载并升级」立即显示进度区并进入「正在连接下载源，请稍候… / 连接中…」状态（下载字节为 0 时保持提示而非静默），下载服务端超时由 300s 收紧到 120s（卡死连接会报错并可重试，不再无限 0%）。</p>
+
+      <p class="version-tag">（Build 253 2026-08-23）Player 状态卡片“下一站”图标更新为双箭头；Editor L2 Tab 与内容区无缝衔接；海峡导入说明补充模式切换说明与示意图。<br>（Build 254 2026-08-23）修复英文站名语音文件匹配：此前有英文站名时只会匹配「英文站名」或「E+英文站名」，未匹配「E+中文站名」。现按既有规定修正——英文语音 = 「英文站名」或「E+中文站名」，英文站名优先级最高，其次 E+/En+/E/En + 中文站名；本站英文 / 下站英文 / 起始站英文 / 终点站英文 四条路径统一经 `resolveStationAudioEn` 生效。</p>
 
       <section class="debug-panel" id="debugPanel">
       <h2>Dev 调试信息</h2>
@@ -277,7 +280,7 @@
       <h3>交通档案库报站模拟器</h3>
       <p>面向公交报站线路文件的本地管理、编辑与播放模拟工具。</p>
       <dl>
-        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6 (Build 251)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
+        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6 (Build 254)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
         <div><dt>作者</dt><dd>@爱困的RJ（R.J. Hu）</dd></div>
         <div><dt>Bilibili 主页</dt><dd><a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener">点击前往</a></dd></div>
         <div><dt>Gitee 主页</dt><dd><a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener">点击前往</a></dd></div>
@@ -286,10 +289,10 @@
     </div>
   </aside>
 
-  <script src="./editor-core.js?v=20260823&b=251"></script>
-  <script src="./editor-components.js?v=20260823&b=251"></script>
-  <script src="./main.js?v=20260823&b=251"></script>
-  <script src="./editor-ui.js?v=20260823&b=251"></script>
-  <script src="./panel-controller.js?v=20260823&b=251"></script>
+  <script src="./editor-core.js?v=20260823&b=254"></script>
+  <script src="./editor-components.js?v=20260823&b=254"></script>
+  <script src="./main.js?v=20260823&b=254"></script>
+  <script src="./editor-ui.js?v=20260823&b=254"></script>
+  <script src="./panel-controller.js?v=20260823&b=254"></script>
 </body>
 </html>

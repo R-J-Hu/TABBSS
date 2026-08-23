@@ -1,6 +1,6 @@
-window.TABBSS_JS_VER = "251a"; // cache-debug marker for dev panel
+window.TABBSS_JS_VER = "254a"; // cache-debug marker for dev panel
 window.TABBSS_VERSION = "1.6";  // from VERSION
-window.TABBSS_BUILD = "251";    // must match index.html build badge
+window.TABBSS_BUILD = "254";    // must match index.html build badge
 
 // ── Global error surface (Release builds have no console) ──
 window.addEventListener("error", function (ev) {
@@ -1009,9 +1009,26 @@ function resolveStationAudioEn(dir, stopIndex, fallbackName) {
   const key = `${dir}:${stopIndex}`;
   const rel = map[key] || "{本站英文同名文件}";
   const zhName = (state.route?.directions?.[dir]?.stations || [])[stopIndex - 1] || "";
-  const nameFromMap = map[`${dir}:${stopIndex}:name`] || fallbackName || zhName || "";
   if (rel === "{本站英文同名文件}") {
-    return resolveSameNameAudioToken(nameFromMap || zhName || fallbackName || "", ["E+", "En+", "E", "En", ""]);
+    // 英文站名语音文件匹配规则：英文语音 = 「英文站名」 或 「E+中文站名」。
+    // 英文站名本身优先级最高；其次 E+/En+/E/En + 中文站名。
+    // 修正：此前用英文站名拼 E 前缀（E+英文站名），应为中文站名（E+中文站名）。
+    // 覆盖 本站英文 / 下站英文 / 起始站英文 / 终点站英文 四条匹配路径。
+    const enName = map[`${dir}:${stopIndex}:name`] || fallbackName || "";
+    const urls = [];
+    const relParts = [];
+    if (enName) {
+      const r = resolveSameNameAudioToken(enName, [""]);
+      urls.push(...r.urls);
+      relParts.push(`${enName}.*`);
+    }
+    if (zhName) {
+      const r = resolveSameNameAudioToken(zhName, ["E+", "En+", "E", "En"]);
+      urls.push(...r.urls);
+      relParts.push(`E+${zhName}.*`);
+    }
+    if (!urls.length) return null;
+    return { rel: relParts.join(" | "), urls, url: urls[0] || "" };
   }
   const urls = audioUrlCandidatesForRelative(rel);
   return { rel, urls, url: urls[0] };
@@ -2477,7 +2494,14 @@ function renderUpdateModal(info, force) {
     var sizeEl = document.getElementById("updateDlSize");
     var speedEl = document.getElementById("updateDlSpeed");
     if (!dl || !bar) return;
+    // Show the progress UI immediately so a slow connection still reads as
+    // "in progress" (real upgrade must look exactly like simulated upgrade).
     dl.style.display = "block";
+    bar.style.width = "0%";
+    pctEl.textContent = "0%";
+    sizeEl.textContent = "";
+    speedEl.textContent = "连接中...";
+    if (version) version.textContent = "正在连接下载源，请稍候...";
     var lastBytes = 0, lastTs = Date.now(), timer = null;
 
     function tick() {
@@ -2487,6 +2511,7 @@ function renderUpdateModal(info, force) {
           bar.style.width = "100%";
           pctEl.textContent = "100%";
           sizeEl.textContent = fmtSize(s.downloaded) + " / " + fmtSize(s.total);
+          speedEl.textContent = "";
           if (s.ok) {
             version.textContent = "下载完成，正在启动安装程序...";
             btn.textContent = "即将退出并启动升级向导";
@@ -2497,7 +2522,19 @@ function renderUpdateModal(info, force) {
           }
           return;
         }
+        if (!s.active) {
+          // Thread started but no download state yet — keep the connecting hint.
+          version.textContent = "正在连接下载源，请稍候...";
+          return;
+        }
         var now = Date.now();
+        if (s.downloaded === 0) {
+          // Established connection but no bytes yet — CDN slow. Keep the UI alive.
+          version.textContent = "正在连接下载源，请稍候...";
+          speedEl.textContent = "连接中...";
+          lastBytes = 0; lastTs = now;
+          return;
+        }
         var dt = (now - lastTs) / 1000;
         var speed = dt > 0 ? (s.downloaded - lastBytes) / dt : 0;
         lastBytes = s.downloaded; lastTs = now;

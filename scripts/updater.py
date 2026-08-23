@@ -366,7 +366,10 @@ def download_file(url: str, dest: Path) -> bool:
     try:
         req = urllib.request.Request(url)
         req.add_header("User-Agent", "TABBSS-Updater/1.0")
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        # 120s overall timeout: a slow-but-working CDN usually finishes; a truly
+        # stuck connection errors out and the UI can offer "重试" instead of
+        # sitting at 0% indefinitely.
+        with urllib.request.urlopen(req, timeout=120) as resp:
             total = int(resp.headers.get("Content-Length", 0))
             _DL_STATE["total"] = total
             downloaded = 0

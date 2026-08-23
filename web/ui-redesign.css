@@ -1046,7 +1046,8 @@ label.ed-checkbox {
 .phase-icon svg { width:18px; height:18px; overflow:visible; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .phase-icon .phase-arrival-icon path { fill:currentColor; stroke:none; }
 .phase-icon .phase-arrival-icon circle { fill:#ef851d; stroke:none; }
-.phase-display.heading .phase-heading-icon path { fill:none; stroke:currentColor; stroke-width:2.7; }
+.phase-display.heading .phase-heading-icon { width:16px; height:16px; }
+.phase-display.heading .phase-heading-icon path { fill:none; stroke:currentColor; stroke-width:4.05; }
 .phase-icon .phase-heading-icon { display:none; }
 .phase-display.heading .phase-arrival-icon { display:none; }
 .phase-display.heading .phase-heading-icon { display:block; }
@@ -1054,6 +1055,7 @@ label.ed-checkbox {
 .status-summary .station-en { margin:5px 0 0; color:#62748e; font-size:17px; font-weight:700; line-height:1.25; }
 .status-summary .station-en:empty { display:none; }
 .volume-control { display:grid; grid-template-columns:18px 1fr 38px; gap:9px; align-items:center; margin-top:auto; padding-top:13px; border-top:1px solid #eaf0f6; color:#8392a7; font-size:12px; font-weight:700; }
+.volume-control .volume-icon { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .volume-control input { width:100%; accent-color:var(--player-green); }
 
 .route-visual { display:flex; position:relative; min-width:0; flex-direction:column; padding:21px 30px 17px; }
