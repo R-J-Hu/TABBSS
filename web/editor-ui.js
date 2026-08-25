@@ -2240,15 +2240,21 @@
     var m = LE.state.editModel;
     if (!m) { container.innerHTML = '<div class="ed-empty">未加载线路</div>'; return; }
     var company = (LE.state.currentLineRelPath || "").split("/")[0] || LE.state.currentCompany;
+    var isLoop = m.mode === "loop";
+    var direction = LE.state._stationRulesDirection === "down" ? "down" : "up";
+    var visibleDirections = isLoop ? ["up"] : [direction];
 
     var html = "";
+    if (!isLoop) {
+      html += '<div class="ed-template-direction-group ed-station-rules-direction-group"><div class="ed-template-tabs"><button type="button" class="ed-template-tab ed-theme-up' + (direction === "up" ? " active" : "") + '" data-station-rules-dir="up">上行</button><button type="button" class="ed-template-tab ed-theme-down' + (direction === "down" ? " active" : "") + '" data-station-rules-dir="down">下行</button></div><div class="ed-template-direction-body">';
+    }
     html += '<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">';
     html += '<button class="ed-btn ed-btn-ghost" id="edExpandAll">一键展开所有</button>';
     html += '<button class="ed-btn ed-btn-ghost" id="edCollapseAll">一键收起所有</button>';
     html += '</div>';
 
-    function buildDirSection(dirLabel, stops, overrides, dir) {
-      var h = '<div style="margin-bottom:12px"><h4 style="font-size:13px;color:#20355c;margin:0 0 8px">' + dirLabel + '站点</h4>';
+    function buildDirSection(stops, overrides, dir) {
+      var h = '<div style="margin-bottom:12px">';
       stops.forEach(function (stn, idx) {
         var i = idx + 1;
         var ov = (overrides && overrides[i]) ? overrides[i] : {};
@@ -2281,7 +2287,7 @@
         });
 
         h += '<div class="ed-strule-actions">';
-        h += '<a href="#" class="ed-copy-to-opposite" data-dir="' + dir + '" data-idx="' + i + '">复制到对向同名站点</a>';
+        if (!isLoop) h += '<a href="#" class="ed-copy-to-opposite" data-dir="' + dir + '" data-idx="' + i + '">复制到对向同名站点</a>';
         h += '<a href="#" class="ed-apply-station" data-dir="' + dir + '" data-idx="' + i + '">应用到其他线路</a>';
         h += '<a href="#" class="ed-strule-clear ed-clear-station" data-dir="' + dir + '" data-idx="' + i + '">清空</a>';
         h += '</div>';
@@ -2292,13 +2298,15 @@
       return h;
     }
 
-    html += buildDirSection("上行", m.upStationsCn, m.stationOverrides.up, "up");
-    html += buildDirSection("下行", m.downStationsCn, m.stationOverrides.down, "down");
+    visibleDirections.forEach(function (dir) {
+      html += buildDirSection(dir === "up" ? m.upStationsCn : m.downStationsCn, m.stationOverrides[dir], dir);
+    });
+    if (!isLoop) html += '</div></div>';
 
     container.innerHTML = html;
 
     // Render Rule Editors
-    ["up", "down"].forEach(function (dir) {
+    visibleDirections.forEach(function (dir) {
       var stops = dir === "up" ? m.upStationsCn : m.downStationsCn;
       var overrides = m.stationOverrides[dir] || {};
       stops.forEach(function (stn, idx) {
@@ -2354,6 +2362,13 @@
       hdr.addEventListener("click", function () {
         var card = hdr.closest(".ed-strule-card");
         card.classList.toggle("open");
+      });
+    });
+
+    container.querySelectorAll("[data-station-rules-dir]").forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        LE.state._stationRulesDirection = tab.dataset.stationRulesDir;
+        LE.renderL2();
       });
     });
 
