@@ -481,7 +481,7 @@ select, button {
 .update-modal-close .ui-icon { width: 17px; height: 17px; }
 .update-modal-body { flex: 1; overflow-y: auto; padding: 16px 22px 20px; }
 .update-modal-version { margin: 0 0 12px; color: #1769d8; font-size: 15px; font-weight: 750; }
-.update-dl { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5edf6; }
+.update-dl { flex-shrink: 0; margin: 0; padding: 12px 22px 0; border-top: 1px solid #e5edf6; }
 .update-dl-track {
   height: 8px;
   background: #e5edf6;

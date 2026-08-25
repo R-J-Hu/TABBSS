@@ -1146,7 +1146,8 @@ label.ed-checkbox {
 @keyframes playerOuterPulse { 0% { transform:scale(.72); opacity:.52; } 72%,100% { transform:scale(1.17); opacity:0; } }
 
 /* Exact prototype lock: neutralize earlier Player layer rules. */
-body { margin:0; min-width:980px; color:#123970; background:#f4f7fc; font:14px "Microsoft YaHei","Segoe UI",sans-serif; }
+/* Keep the application usable at the agreed minimum window width. */
+body { margin:0; min-width:1000px; color:#123970; background:#f4f7fc; font:14px "Microsoft YaHei","Segoe UI",sans-serif; }
 .player-page { padding:92px 34px 18px; }
 .brand-rail { align-items:stretch; color:#eff6ff; text-align:center; }
 .rail-nav-item { color:#dceaff; background:transparent; font-weight:700; box-shadow:none; }

@@ -97,6 +97,12 @@ window.LineEditor = (function () {
   LE.parseRuleTokens = parseRuleTokens;
   LE.serializeTokens = serializeTokens;
 
+  /** Is this token a default-template reference marker (not an audio file)? */
+  LE.isTemplateMarker = function (tok) {
+    return tok === "【默认模版】" || tok === "【默认模板】" ||
+           tok === "{默认模版}" || tok === "{默认模板}";
+  };
+
   /** Find a continuous subsequence in a token array */
   LE.findSubsequence = function (tokens, needle) {
     if (!needle || !needle.length || !tokens) return { found: false, start: -1, end: -1 };
@@ -588,7 +594,7 @@ window.LineEditor = (function () {
     function addRef(file) {
       if (!file) return;
       file = file.replace(/^"|"$/g, "");
-      if (!file || LE.isParamToken(file)) return;
+      if (!file || LE.isParamToken(file) || LE.isTemplateMarker(file)) return;
       if (/^\{[^}]+\}$/.test(file)) return;
       if (files.indexOf(file) < 0) files.push(file);
     }
@@ -725,7 +731,7 @@ window.LineEditor = (function () {
         function addRef(file, location) {
           if (!file) return;
           file = file.replace(/^"|"$/g, ""); // Strip INI-format quotes
-          if (!file || LE.isParamToken(file)) return;
+          if (!file || LE.isParamToken(file) || LE.isTemplateMarker(file)) return;
           if (!refMap[file]) refMap[file] = [];
           if (refMap[file].indexOf(location) < 0) refMap[file].push(location);
         }

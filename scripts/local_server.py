@@ -470,8 +470,21 @@ class LocalHandler(SimpleHTTPRequestHandler):
         if p == self.data_root:
             self._send_json(400, {"ok": False, "error": "不能删除数据根目录"})
             return
+        import os
         import shutil
-        shutil.rmtree(p)
+        import stat
+
+        # Directories copied from external sources may retain Windows'
+        # read-only bit.  Clear it only for the user-confirmed deletion
+        # target and its descendants, then let rmtree remove them normally.
+        def clear_readonly(path):
+            try:
+                os.chmod(path, os.stat(path).st_mode | stat.S_IWRITE)
+            except OSError:
+                pass
+
+        clear_readonly(p)
+        shutil.rmtree(p, onexc=lambda func, path, exc: (clear_readonly(path), func(path))[1])
         self._send_json(200, {"ok": True, "relPath": rel})
 
     def _api_open_folder(self, data):
@@ -1024,11 +1037,40 @@ class LocalHandler(SimpleHTTPRequestHandler):
         import re
         files = set()
 
+        # Exact parameter tokens that are NOT audio files. ONLY these are excluded
+        # when collecting references — a filename that merely contains 【】｛｝[]
+        # (e.g. `[外]转弯A.mp3`, `【广告语】平价配镜就选庄氏-降噪.mp3`) is a file
+        # and must be kept verbatim.
+        PARAM_TOKENS = frozenset({
+            # 本站
+            "{本站}", "{本站中文}", "【本站】", "【本站中文】",
+            "{本站英文}", "【本站英文】", "【英文本站】",
+            # 下站
+            "{下站}", "{下站中文}", "【下站】", "【下站中文】",
+            "{下站英文}", "【下站英文】", "【英文下站】",
+            # 起始站
+            "{起点}", "{起始站}", "{起始站中文}", "【起始站中文】",
+            "{起始站英文}", "【起始站英文】",
+            # 终点站
+            "{终点}", "{终点站}", "{终点站中文}", "【终点站中文】",
+            "{终点站英文}", "【终点站英文】",
+            # 默认模版 / 普通站模板
+            "{默认模版}", "{默认模板}", "【默认模版】", "【默认模板】",
+            "{普通站预报模板}", "【普通站预报模板】",
+            "{普通站到站模板}", "【普通站到站模板】",
+            # 旧版语音文件参数
+            "{本站中文文件}", "【本站中文文件】",
+            "{本站英文文件}", "【本站英文文件】",
+        })
+
         def is_file_token(tok):
-            tok = tok.strip().strip('[]"').strip()
+            tok = tok.strip().strip('"').strip()
             if not tok:
                 return None
-            if tok.startswith("{") or tok.startswith("【"):
+            if tok in PARAM_TOKENS:
+                return None
+            # 旧格式裸 {参数}（无扩展名）也是参数；带扩展名的 {xxx}.mp3 仍是文件
+            if re.match(r'^\{[^}]*\}$', tok):
                 return None
             return tok
 

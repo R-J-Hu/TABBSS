@@ -262,7 +262,9 @@
 .ed-l2-content {
   flex: 1;
   overflow-y: auto;
-  padding: 0 4px 12px 0;
+  /* Keep the active tab flush with its panel while giving the first
+     scrollable component enough visual breathing room. */
+  padding: 14px 4px 12px 0;
   scrollbar-gutter: stable;
 }
 

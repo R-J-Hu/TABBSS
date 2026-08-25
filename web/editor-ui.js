@@ -839,7 +839,7 @@
       '<div class="ed-modal-header"><h3>' + LE.escHtml(title) + '</h3>' + modalCloseButton() + '</div>' +
       '<div class="ed-modal-body">' +
       '<div style="margin-bottom:8px"><strong>公司：</strong>' +
-      '<select id="lsCompanySelect" style="width:100%;padding:6px 8px;border:1px solid var(--b);border-radius:4px">' + companyOpts + '</select></div>' +
+      '<select id="lsCompanySelect" style="width:100%;padding:8px;background:#ffffff;border:1px solid #d8e3f1;border-radius:6px;color:#20355c;font-size:13px;color-scheme:light">' + companyOpts + '</select></div>' +
       '<div style="margin-bottom:8px"><strong>选择线路：</strong></div>' +
       '<div id="lsLineGrid" style="max-height:300px;overflow-y:auto"><div class="ed-empty">加载中...</div></div>' +
       '</div>' +
@@ -924,7 +924,7 @@
   // Check if a token is a file (not a param)
   function isFileToken(tok) {
     if (!tok) return false;
-    if (LE.isParamToken(tok)) return false;
+    if (LE.isParamToken(tok) || LE.isTemplateMarker(tok)) return false;
     // Also catch {param} patterns that aren't in PARAM_DEFS
     if (/^\{[^}]+\}$/.test(tok)) return false;
     return true;
@@ -1172,10 +1172,14 @@
         var eqIdx = line.indexOf("=");
         var key = LE.escHtml(line.substring(0, eqIdx));
         var val = line.substring(eqIdx + 1);
-        // Highlight params and quoted files in value
-        var valEsc = LE.escHtml(val)
-          .replace(/\{([^}]+)\}/g, '<span class="ini-param">{$1}</span>')
-          .replace(/"[^"]+"/g, '<span class="ini-file">$&</span>');
+        // Highlight params and quoted files in value.
+        // Use a SINGLE pass so the file span never swallows a param span's
+        // markup (`"文件">{参数}` adjacent would otherwise corrupt the HTML,
+        // and re-reading innerText leaks the class name as literal `ini-param`).
+        var valEsc = LE.escHtml(val).replace(/"[^"]*"|\{[^}]*\}/g, function (m) {
+          if (m.charAt(0) === '"') return '<span class="ini-file">' + m + '</span>';
+          return '<span class="ini-param">' + m + '</span>';
+        });
         escaped = '<span class="ini-key">' + key + '</span>=<span class="ini-val">' + valEsc + '</span>';
       } else if (/^stop_\d+:/.test(line)) {
         escaped = '<span class="ini-stop">' + escaped + '</span>';
@@ -2450,13 +2454,15 @@
     for (var k = 0; k < 10; k++) {
       var nameEl = container.querySelector("#edTipName_" + k);
       if (nameEl) {
-        (function (idx) {
-          nameEl.addEventListener("input", function () {
-            console.log("[editor-ui] tip " + (idx + 1) + " name changed to: " + JSON.stringify(nameEl.value));
-            tips[idx].name = nameEl.value;
+        // Capture `el` per iteration: `var nameEl` is function-scoped, so a
+        // closure over it would read the LAST input's value for every tip.
+        (function (idx, el) {
+          el.addEventListener("input", function () {
+            console.log("[editor-ui] tip " + (idx + 1) + " name changed to: " + JSON.stringify(el.value));
+            tips[idx].name = el.value;
             LE.state.isDirty = true;
           });
-        })(k);
+        })(k, nameEl);
       }
     }
 
@@ -2586,7 +2592,7 @@
     overlay.innerHTML = '<div class="ed-modal" style="width:540px">' +
       '<div class="ed-modal-header"><h3>' + title + '</h3>' + modalCloseButton() + '</div>' +
       '<div class="ed-modal-body">' +
-      (mode === "move" ? '<div style="background:#e5edf6;border:1px solid #d8e3f1;border-radius:6px;padding:10px 12px;margin-bottom:12px;color:#69778d;font-size:12px">如果您要调整线路排序，请按住线路卡片的"≡"拖拽即可。</div>' : '') +
+      (mode === "move" ? '<div style="background:#e5edf6;border:1px solid #d8e3f1;border-radius:6px;padding:10px 12px;margin-bottom:12px;color:#69778d;font-size:12px">如果您要调整线路排序，请移动完成后到线路列表拖拽排序。</div>' : '') +
       '<div style="margin-bottom:8px"><strong>目标公司：</strong> <select id="cmCompany" style="padding:6px 8px;background:#ffffff;border:1px solid #d8e3f1;border-radius:4px;color:#20355c">' + companyOpts + '</select></div>' +
       '<div style="margin-bottom:4px;font-size:12px;color:#69778d">此公司下的线路：</div>' +
       '<div id="cmLineList" style="max-height:160px;overflow-y:auto;margin-bottom:10px"><div class="ed-empty">加载中...</div></div>' +
