@@ -1,6 +1,6 @@
-window.TABBSS_JS_VER = "257"; // cache-debug marker for dev panel
+window.TABBSS_JS_VER = "258"; // cache-debug marker for dev panel
 window.TABBSS_VERSION = "1.6.1";  // from VERSION
-window.TABBSS_BUILD = "257";    // must match index.html build badge
+window.TABBSS_BUILD = "258";    // must match index.html build badge
 
 // ── Global error surface (Release builds have no console) ──
 window.addEventListener("error", function (ev) {
@@ -2256,6 +2256,7 @@ function onGlobalKeydown(ev) {
   }
 
   const fMap = {
+    F4: () => nextAnnounceBtn.click(),
     F7: () => flipDirBtn.click(),
     F8: () => stopPlayBtn.click(),
     F9: () => arriveBtn.click(),
