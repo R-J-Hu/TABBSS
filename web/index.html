@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>档案库报站器 内测版</title>
-  <link rel="stylesheet" href="./style.css?v=20260825&b=258" />
-  <link rel="stylesheet" href="./editor.css?v=20260825&b=258" />
-  <link rel="stylesheet" href="./ui-redesign.css?v=20260825&b=258" />
+  <link rel="stylesheet" href="./style.css?v=20260826&b=259" />
+  <link rel="stylesheet" href="./editor.css?v=20260826&b=259" />
+  <link rel="stylesheet" href="./ui-redesign.css?v=20260826&b=259" />
 </head>
 <body>
   <svg class="icon-defs" aria-hidden="true" focusable="false">
@@ -39,7 +39,7 @@
         <button type="button" id="devPanelToggle" class="rail-nav-item dev-nav-item"><i aria-hidden="true">🔨</i><span>开发者模式</span></button>
       </nav>
       <footer class="rail-footer">
-        <small>V1.6.1 Build 258<br>交通档案库版权所有</small>
+        <small>V1.6.1 Build 259<br>交通档案库版权所有</small>
         <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" class="rail-social rail-social-bilibili" aria-label="交通档案库 Bilibili 主页"><img id="bilibiliIcon" src="" alt=""><span>BILIBILI 主页</span></a>
         <a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener" class="rail-social rail-social-gitee"><img id="giteeIcon" src="" alt=""><span>Gitee 主页</span></a>
         <a href="https://github.com/R-J-Hu/TABBSS/" target="_blank" rel="noopener" class="rail-social rail-social-github"><img id="githubIcon" src="" alt=""><span>Github 主页</span></a>
@@ -54,7 +54,7 @@
           <label id="companyRouteWrap" class="topbar-select-label"><span>公司</span><select id="companyRouteSelect"></select></label>
           <label class="topbar-select-label line-select"><span>线路</span><select id="routeSelect"></select></label>
         </div>
-        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 258 2026-08-25 23:14:41</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
+        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 259 2026-08-26 22:44:19</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
       </header>
       <p id="editionWarning" class="edition-warning"></p>
 
@@ -138,7 +138,7 @@
 （Build 236 2026-08-17）修复升级安装程序无法启动：完整应用里 in-process os.startfile 在 .NET 运行时（webview）加载后报 WinError 1223；改用独立 cmd.exe 进程的 start（ShellExecute）启动安装程序，正确触发 UAC 且立即返回。
 （Build 237 2026-08-19）升级启动方案定稿（234/235 实测通过）：Windows 用 os.startfile（ShellExecute 触发 UAC），macOS 用 open，Linux 用 xdg-open，跨平台按平台分支。升级提示改为居中模态弹窗（配色对齐设置/关于侧栏），展示版本+changelog 分组。编辑器及所有子窗体改为浅色主题（配色与 Player、设置侧栏一致），INI 语法高亮与高级文本编辑器同步浅色化。开发者模式新增「模拟升级」按钮：获取 Gitee 最新 build（即使不比当前版本高）触发升级流程，版本不比当前高时 changelog 只显示该版本。修复 style.css 中 @keyframes headingBreath 未闭合花括号导致后续 CSS 规则（含升级弹窗 fixed 定位）失效；修复编辑器音频选择器弹窗被默认模板遮罩盖住不可见（z-index 50→9999）；升级检查双源 fallback（Gitee 优先，失败切 GitHub）；下载安装程序时弹窗内显示进度条+百分比+已下载/总大小+实时速度。开发者模式侧面板大小/标题/框架对齐设置（关于）面板（宽度 420px、深色标题、svg 关闭钮、同款阴影）；编辑器侧栏阴影对齐设置面板；侧边栏移除「报站」按钮（有侧面板显示侧面板、关闭即回 Player，侧边栏按钮再次点击关闭对应面板）；车站信息「双向模式/环线模式」选中文字改白色；编辑器问号 hover 提示改为可见 CSS tooltip；新建线路默认版本 V1.0；顶栏「线路」选框与编辑器「编辑当前线路」改为显示 index.json 注册文件名（而非 INI 内部短名）；Player 终点站英文左缘与终点站中文恒定对齐；关于页改为全称「交通档案库报站模拟器」+顶栏同款 Logo，版本合并为 V1.6 (Build 237) 并提供【检查更新】按钮，新增作者与 Bilibili/Gitee/Github 主页链接，移除运行方式；海峡导入弹窗格式对齐检查更新弹窗；editor L0 新增「从其他报站器导入线路」下拉（含海峡兼容与蓝斯「即将完工」入口）；修复 ui-redesign.css 损坏行；修复线路号→终点站网格 column-gap 过大导致「4 → 会展中心站」中英文间距被拉大（6px→4px，英文仍与中文左缘对齐）；修复线路图站点标签中英文间距：b/small 不再按固定高度预留两行（中文一行时英文空距 17.7px），改为 max-height+align-content:start，英文紧贴中文（1.9px）、超长站名仍 2 行截断；播放队列显示名优化：站名通配匹配（如 *.wav 规则）找到真实音频后显示实际文件名，无匹配保留规则文本，本站/下站等参数匹配前置蓝色 tag；修复右侧 rail 区域莫名阴影（关闭的 fileSidebar/devPanelSidebar 在视口右缘外仍向左渲染阴影，关闭状态下面板 box-shadow:none，打开面板左侧阴影保留）。
 （Build 238 2026-08-20）优化升级检查的 Gitee 匿名 API 调用：每次检查从 1+13 次降到 1+1 次（仅对最新匹配 release 拉附件，之前对全部 release 都拉），Gitee 匿名限流 403 时自动切 GitHub 检查并获取安装包；限流/失败结果短暂缓存 2 分钟，避免每次启动都重试加重限流。
-（Build 239 2026-08-22）修复：Editor L0 公司重命名后不再跳到列表最上方（去掉重排序，保留原位置）；修复部分公司（如福州营达、厦门BRT连接线）因 index.json 公司名与磁盘目录名不一致（目录已加【原】前缀）导致重命名报「找不到目录/文件」，已同步 4 个公司的 index 名称与线路路径到磁盘目录；修复「播报下一条」在到站态时提示显示当前站而非下一站（如到 2 站后应提示「3站预报」）；Editor 基础信息页「线路文件名称」改为「线路文件名」、「线路显示名称」改为「线路简称」（存储/INI 逻辑不变），并新增带配图的可视化提示（线路文件名图 + 线路图显示名图）。补充：Editor L2 基础信息与车站信息之间新增「管理音频文件」tab（复用媒体文件夹面板内容并内置顶部提示横幅「全公司共享同一个音频文件夹」，移除 L2 底部「打开媒体文件夹」链接）；「媒体文件夹」全局改名「音频文件夹」；车站信息页自动识别站点改为默认展开、修复自动识别到上下行站点列表的间距缺失（对齐运行模式→自动识别的 14px 间距）、去掉「运行模式」字样、「双向模式/环线模式」改称「双向运行/单向环线运行」、环线模式下不再显示「上行」方向标题（环线不分方向）；「全局模版」改名为「全局报站规则」，各 L1 标题模块间距放大 1.5 倍（16px→24px）；各站特殊规则「一键展开所有/一键收起所有」由链接改为按钮（样式同手按提示语的「应用到其他线路」）；手按提示语标题 placeholder 改为「如让座、转弯等」；显示右箭头「→」统一替换为「➜」（线路图徽标此前已用 ➜，重命名提示、高级编辑链接、线路简称帮助文本同步，站点识别分隔符兼容 ➜）。</p>
+（Build 239 2026-08-22）修复：Editor L0 公司重命名后不再跳到列表最上方（去掉重排序，保留原位置）；修复部分公司（如福州营达、厦门BRT连接线）因 index.json 公司名与磁盘目录名不一致（目录已加【原】前缀）导致重命名报「找不到目录/文件」，已同步 4 个公司的 index 名称与线路路径到磁盘目录；修复「播报下一条」在到站态时提示显示当前站而非下一站（如到 2 站后应提示「3站预报」）；Editor 基础信息页「线路文件名称」改为「线路文件名」、「线路显示名称」改为「线路简称」（存储/INI 逻辑不变），并新增带配图的可视化提示（线路文件名图 + 线路图显示名图）。补充：Editor L2 基础信息与车站信息之间新增「管理音频文件」tab（复用媒体文件夹面板内容并内置顶部提示横幅「全公司共享同一个音频文件夹」，移除 L2 底部「打开媒体文件夹」链接）；「媒体文件夹」全局改名「音频文件夹」；车站信息页自动识别站点改为默认展开、修复自动识别到上下行站点列表的间距缺失（对齐运行模式→自动识别的 14px 间距）、去掉「运行模式」字样、「双向模式/环线模式」改称「双向运行/单向环线运行」、环线模式下不再显示「上行」方向标题（环线不分方向）；「全局模版」改名为「全局报站规则」，各 L1 标题模块间距放大 1.5 倍（16px→24px）；各站特殊规则「一键展开所有/一键收起所有」由链接改为按钮（样式同手按提示语的「应用到其他线路」）；手按提示语标题 placeholder 改为「如让座、转弯等」；显示右箭头「→」统一替换为「➜」（线路图徽标此前已用 ➜，重命名提示、高级编辑链接、线路简称帮助文本同步，站点识别分隔符兼容 ➜）。<br>（Build 259 补充 2026-08-26）修复旧音频库中「.mp3 后缀、实际 RIFF/WAVE」被按 MP3 解码导致播放失败；服务器按文件头返回正确音频类型，真实 MP3 不受影响。</p>
 
       <p class="version-tag">（Build 240 2026-08-23）Editor 细节优化：六个编号 tab、方向色条标题与全局规则上下行 tab；音频管理隐藏 INI、支持图标化复制/移动/导出/删除及批量下载；默认模板整体斜线遮罩与白底音频选择器；未设置手按提示语提示，toast 避开顶栏与右侧栏。<br>（Build 241 2026-08-23）修复标题色条、默认规则点破与间隙悬停、全局规则分 tab 容器、L0/L1 重复图标及下拉箭头垂直对齐。</p>
 
@@ -147,7 +147,8 @@
       <p class="version-tag">（Build 243 2026-08-23）默认规则遮罩回归修正。<br>（Build 244 2026-08-23）默认规则遮罩只改变视觉层：保留既有首部、内部、尾部新增标签交互；修复默认模板前后标签并存时的索引错位、异常换行与编辑回折。<br>（Build 245 2026-08-23）默认音频规则在前后新增时保留默认遮罩，保存时仅写入新增标签。<br>（Build 246 2026-08-23）默认遮罩彻底退出 tag 流式布局，修复首尾空行及后续 tag 无法紧随的问题。<br>（Build 247 2026-08-23）修复默认序列与后续 tag 之间新增时的显示/数据索引错位及空锚点异常。<br>（Build 248 2026-08-23）Editor Audio Selector 参数按新规范收敛：全局报站规则/各站特殊规则/手按服务语仅提供 8 个中英文站名参数（本站中文/本站英文/下站中文/下站英文/起始站中文/起始站英文/终点站中文/终点站英文），并按各编辑框提供矩阵禁用（首站/普通/终点预报无本站，终点到站无下站，本站中文语音文件无本站中文、本站英文语音文件无本站英文）；取消【本站中文文件】【本站英文文件】【普通站预报模板】【普通站到站模板】可选 tag（旧数据中已保存的 token 仍可识别渲染）；导入目标公司默认值调整：L0 导入默认「+ 新建公司」，L1 导入默认当前公司；导入线路包仅支持 .tabl 不再接受 .zip（前端 accept 与服务端双重校验）。<br>（Build 249 2026-08-23）Editor 两处下拉按钮改用几何居中的 SVG 箭头；默认规则遮罩改为高透明中性冷灰。<br>（Build 250 2026-08-23）Editor 弹窗统一白色背景，并复用设置面板同款 SVG 关闭按钮。<br>（Build 251 2026-08-23）修复 TABL 导入的公司永久「未注册」：`_do_import_zip` 原先只注册「新写入」的 .ini，当公司目录已存在同名 .ini 且冲突模式为 skip 时全部跳过、`imported_ini` 为空导致 index.json 更新整体被跳过——若某公司的文件已落地但 index 条目丢失（如沈阳浑南现代有轨电车：目录 255 文件在、index 无条目），重复导入永远无法重新注册。现改为收集 zip 内全部 .ini（含跳过项）并集注册，index 更新异常不再静默吞掉（返回 500「文件已写入，但公司注册失败」）。<br>（Build 252 2026-08-23）修复真实升级与模拟升级体验不一致：两者本使用同一个升级弹窗（含下载进度条），但真实升级在 CDN 慢速/连接卡顿时进度条停在 0% 且无任何反馈，观感上像「没有下载进度」。现在点击「下载并升级」立即显示进度区并进入「正在连接下载源，请稍候… / 连接中…」状态（下载字节为 0 时保持提示而非静默），下载服务端超时由 300s 收紧到 120s（卡死连接会报错并可重试，不再无限 0%）。</p>
 
       <p class="version-tag">（Build 253 2026-08-23）Player 状态卡片“下一站”图标更新为双箭头；Editor L2 Tab 与内容区无缝衔接；海峡导入说明补充模式切换说明与示意图。<br>（Build 254 2026-08-23）修复英文站名语音文件匹配：此前有英文站名时只会匹配「英文站名」或「E+英文站名」，未匹配「E+中文站名」。现按既有规定修正——英文语音 = 「英文站名」或「E+中文站名」，英文站名优先级最高，其次 E+/En+/E/En + 中文站名；本站英文 / 下站英文 / 起始站英文 / 终点站英文 四条路径统一经 `resolveStationAudioEn` 生效。<br>（Build 255 2026-08-25）修复三个用户反馈问题：INI 参数 / 服务语标题 / 默认模板音频误报。<br>（Build 256 2026-08-25）修复 tabl 打包遗漏带括号的媒体文件；补充更新进度固定区、Editor L2 顶部留白、L0 下拉框样式、只读公司删除与 1000px 最低窗口宽度。</p>
-      <p class="version-tag">（Build 257 2026-08-25）Editor L2「各站特殊规则」对齐全局报站规则：环线仅呈现 Player 实际读取的上行站点且不再重复显示标题；双向运行采用绿色上行 / 橙色下行分 Tab 显示。<br>（Build 258 2026-08-25）播报下一条新增 F4 快捷键（空格键保留），按钮快捷键提示改为「空格键 或 F4」。</p>
+      <p class="version-tag">（Build 257 2026-08-25）Editor L2「各站特殊规则」对齐全局报站规则：环线仅呈现 Player 实际读取的上行站点且不再重复显示标题；双向运行采用绿色上行 / 橙色下行分 Tab 显示。<br>（Build 258 2026-08-25）播报下一条新增 F4 快捷键（空格键保留），按钮快捷键提示改为「空格键 或 F4」。<br>（Build 259 2026-08-26）修复两个 P0：①「复制现有线路」跨公司复制时站点音频缺失（含隐式同名站名音频，上下行）——复制音频收集改用完整版收集器并支持扩展名解析；②校验环节「上下行相同」线路下行站点音频不校验——下行模板为空时回退用上行模板判定（校验与文件收集一致）。附带修复公司导出 tabl 时同一音频文件重复打包；校验弹窗同一文件跨方向缺失合并为一行（出现位置顿号连接）；英文站名语音校验与播放匹配规则配套（英文站名 或 E+中文站名，两者都无才报错）。</p>
+      <p class="version-tag">（Build 259 补充 2026-08-26）修复旧音频库中「.mp3 后缀、实际 RIFF/WAVE（IMA ADPCM）」播放失败；服务器按文件头在内存中解码为标准 PCM WAV 返回，原始音频文件不改写，真实 MP3 不受影响。</p>
 
       <section class="debug-panel" id="debugPanel">
       <h2>Dev 调试信息</h2>
@@ -281,7 +282,7 @@
       <h3>交通档案库报站模拟器</h3>
       <p>面向公交报站线路文件的本地管理、编辑与播放模拟工具。</p>
       <dl>
-        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6.1 (Build 258)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
+        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6.1 (Build 259)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
         <div><dt>作者</dt><dd>@爱困的RJ（R.J. Hu）</dd></div>
         <div><dt>Bilibili 主页</dt><dd><a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener">点击前往</a></dd></div>
         <div><dt>Gitee 主页</dt><dd><a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener">点击前往</a></dd></div>
@@ -290,10 +291,10 @@
     </div>
   </aside>
 
-  <script src="./editor-core.js?v=20260825&b=258"></script>
-  <script src="./editor-components.js?v=20260825&b=258"></script>
-  <script src="./main.js?v=20260825&b=258"></script>
-  <script src="./editor-ui.js?v=20260825&b=258"></script>
-  <script src="./panel-controller.js?v=20260825&b=258"></script>
+  <script src="./editor-core.js?v=20260826&b=259"></script>
+  <script src="./editor-components.js?v=20260826&b=259"></script>
+  <script src="./main.js?v=20260826&b=259"></script>
+  <script src="./editor-ui.js?v=20260826&b=259"></script>
+  <script src="./panel-controller.js?v=20260826&b=259"></script>
 </body>
 </html>

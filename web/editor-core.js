@@ -103,6 +103,18 @@ window.LineEditor = (function () {
            tok === "{默认模版}" || tok === "{默认模板}";
   };
 
+  /** Effective template tokens for a key. When 上下行相同 (isUpDownSame), the
+   *  down templates are stored empty and mirror the up ones at runtime — so a
+   *  down key with no content falls back to its `up` counterpart. */
+  LE.tplTokens = function (model, key) {
+    var t = (model.templates[key] || []);
+    if (t.length) return t;
+    if (model.isUpDownSame && key.indexOf("down") === 0) {
+      return model.templates["up" + key.slice(4)] || [];
+    }
+    return t;
+  };
+
   /** Find a continuous subsequence in a token array */
   LE.findSubsequence = function (tokens, needle) {
     if (!needle || !needle.length || !tokens) return { found: false, start: -1, end: -1 };
@@ -642,7 +654,7 @@ window.LineEditor = (function () {
         if (!hasZhOverride) {
           if ((ov.depart || []).indexOf("【本站中文】") >= 0 || (ov.arrive || []).indexOf("【本站中文】") >= 0) usesZh = true;
           for (var ti = 0; ti < tplKeys.length; ti++) {
-            if ((model.templates[tplKeys[ti]] || []).indexOf("【本站中文】") >= 0) usesZh = true;
+            if (LE.tplTokens(model, tplKeys[ti]).indexOf("【本站中文】") >= 0) usesZh = true;
           }
           // If used AND no explicit map entry → implicit same-name file
           if (usesZh && !model.stationAudioMap[name]) {
@@ -656,7 +668,7 @@ window.LineEditor = (function () {
         if (!hasEnOverride) {
           if ((ov.depart || []).indexOf("【本站英文】") >= 0 || (ov.arrive || []).indexOf("【本站英文】") >= 0) usesEn = true;
           for (var ti = 0; ti < tplKeys.length; ti++) {
-            if ((model.templates[tplKeys[ti]] || []).indexOf("【本站英文】") >= 0) usesEn = true;
+            if (LE.tplTokens(model, tplKeys[ti]).indexOf("【本站英文】") >= 0) usesEn = true;
           }
           var enName = (dir === "up" ? model.upStationsEn : model.downStationsEn)[idx] || "";
           if (usesEn && !(model.stationAudioMapEn || {})[dir + ":" + stopIdx] && enName) {
@@ -727,6 +739,7 @@ window.LineEditor = (function () {
         mediaNames.forEach(function (n) { mediaNamesLower[n.toLowerCase()] = n; });
 
         var refMap = {}; // file → { locations: [...] }
+        var implicitWarnMap = {}; // (同名文件) → [locations]，隐式同名检查同文件跨方向聚合
 
         function addRef(file, location) {
           if (!file) return;
@@ -784,6 +797,10 @@ window.LineEditor = (function () {
           });
         });
 
+        // Base names (extension stripped, lowercased) for implicit same-name checks
+        var mediaBaseLower = {};
+        mediaNames.forEach(function (mn) { mediaBaseLower[mn.replace(/\.\w+$/, "").toLowerCase()] = true; });
+
         // Implicit same-name file checks (本站中文/英文同名文件)
         ["up", "down"].forEach(function (dir) {
           var stations = dir === "up" ? (model.upStationsCn || []) : (model.downStationsCn || []);
@@ -801,7 +818,7 @@ window.LineEditor = (function () {
               var usesZh2 = false;
               if ((ov.depart || []).indexOf("【本站中文】") >= 0 || (ov.arrive || []).indexOf("【本站中文】") >= 0) usesZh2 = true;
               for (var ti = 0; ti < tplKeys.length && !usesZh2; ti++) {
-                if ((model.templates[tplKeys[ti]] || []).indexOf("【本站中文】") >= 0) usesZh2 = true;
+                if (LE.tplTokens(model, tplKeys[ti]).indexOf("【本站中文】") >= 0) usesZh2 = true;
               }
               if (usesZh2) {
                 // Check if a file matching the station name exists
@@ -812,40 +829,57 @@ window.LineEditor = (function () {
                   if (base === name || base.toLowerCase() === name.toLowerCase()) { zhFound = true; break; }
                 }
                 if (!zhFound) {
-                  audioWarnings.push({
-                    file: name + " (同名文件)",
-                    locations: [(dir === "up" ? "上行" : "下行") + name + "站本站中文语音（同名文件匹配）"],
-                  });
+                  var fName = name + " (同名文件)";
+                  var loc = (dir === "up" ? "上行" : "下行") + name + "站本站中文语音（同名文件匹配）";
+                  if (!implicitWarnMap[fName]) implicitWarnMap[fName] = [];
+                  if (implicitWarnMap[fName].indexOf(loc) < 0) implicitWarnMap[fName].push(loc);
                 }
               }
             }
 
-            // Check EN
+            // Check EN: 英文语音 = 「英文站名」或「E+中文站名」(含 En+/E/En 前缀)，
+            // 与 player resolveStationAudioEn 镜像：先查英文同名，没有再查 E+中文；
+            // 两者都没有才报错，报错文件名显示两条候选（如 "Blissing Village 或 E天佑"）。
             var hasEnOverride = !!(ov.enAudioRel && ov.enAudioRel.trim());
             var enName = (dir === "up" ? model.upStationsEn : model.downStationsEn)[idx] || "";
-            if (!hasEnOverride && enName && !((model.stationAudioMapEn || {})[dir + ":" + stopIdx])) {
+            if (!hasEnOverride && !((model.stationAudioMapEn || {})[dir + ":" + stopIdx])) {
               var usesEn2 = false;
               if ((ov.depart || []).indexOf("【本站英文】") >= 0 || (ov.arrive || []).indexOf("【本站英文】") >= 0) usesEn2 = true;
               for (var ti = 0; ti < tplKeys.length && !usesEn2; ti++) {
-                if ((model.templates[tplKeys[ti]] || []).indexOf("【本站英文】") >= 0) usesEn2 = true;
+                if (LE.tplTokens(model, tplKeys[ti]).indexOf("【本站英文】") >= 0) usesEn2 = true;
               }
               if (usesEn2) {
+                var enCandidates = [];
                 var enFound = false;
-                for (var mi = 0; mi < mediaNames.length; mi++) {
-                  var mn2 = mediaNames[mi];
-                  var base2 = mn2.replace(/\.\w+$/, "");
-                  if (base2 === enName || base2.toLowerCase() === enName.toLowerCase()) { enFound = true; break; }
+                // 1) 英文站名同名文件（最高优先级）
+                if (enName) {
+                  enCandidates.push(enName);
+                  if (mediaBaseLower[enName.toLowerCase()]) enFound = true;
+                }
+                // 2) E+/En+/E/En + 中文站名（显示用 E+中文站名 形式）
+                if (!enFound && name) {
+                  enCandidates.push("E" + name);
+                  var EN_PREFIXES = ["E+", "En+", "E", "En"];
+                  for (var pi = 0; pi < EN_PREFIXES.length && !enFound; pi++) {
+                    if (mediaBaseLower[(EN_PREFIXES[pi] + name).toLowerCase()]) enFound = true;
+                  }
                 }
                 if (!enFound) {
-                  audioWarnings.push({
-                    file: enName + " (同名文件)",
-                    locations: [(dir === "up" ? "上行" : "下行") + name + "站本站英文语音（同名文件匹配）"],
-                  });
+                  var fNameEn = enCandidates.join(" 或 ");
+                  var locEn = (dir === "up" ? "上行" : "下行") + name + "站本站英文语音（同名文件匹配）";
+                  if (!implicitWarnMap[fNameEn]) implicitWarnMap[fNameEn] = [];
+                  if (implicitWarnMap[fNameEn].indexOf(locEn) < 0) implicitWarnMap[fNameEn].push(locEn);
                 }
               }
             }
           });
         });
+
+        // Flatten implicit same-name warnings: same file referenced by both
+        // directions merges into ONE row with 顿号-separated locations
+        for (var fw in implicitWarnMap) {
+          audioWarnings.push({ file: fw, locations: implicitWarnMap[fw] });
+        }
 
         // Check each ref against media files (case-insensitive)
         for (var file in refMap) {

@@ -942,30 +942,30 @@
 
   // Collect all file tokens from entire line (for cross-company full copy)
   function collectAllFiles(model) {
-    var files = collectTemplateTipFiles(model);
-    function add(tok) { if (isFileToken(tok) && files.indexOf(tok) < 0) files.push(tok); }
-    ["up", "down"].forEach(function (dir) {
-      var ov = model.stationOverrides[dir] || {};
-      for (var k in ov) {
-        (ov[k].depart || []).forEach(add);
-        (ov[k].arrive || []).forEach(add);
-        (ov[k].zhAudio || []).forEach(add);
-        (ov[k].enAudio || []).forEach(add);
-      }
-    });
-    for (var k in model.stationAudioMap) add(model.stationAudioMap[k]);
-    for (var k2 in model.stationAudioMapEn) add(model.stationAudioMapEn[k2]);
-    return files;
+    // Use the canonical collector (templates/tips/overrides/audio maps +
+    // implicit same-name station audio, both directions) so cross-company
+    // "复制现有线路" carries station audio too.
+    return (LE.collectLineFileReferences && LE.collectLineFileReferences(model)) || [];
   }
 
   async function copyAudioFilesIfNeeded(files, srcCompany, dstCompany) {
     if (!files.length) return;
     var done = 0;
+    var AUDIO_EXT = [".mp3", ".wav", ".m4a", ".MP3", ".WAV", ".M4A"];
     for (var i = 0; i < files.length; i++) {
-      try {
-        await LE.api.copyFile(srcCompany + "/" + files[i], dstCompany + "/" + files[i]);
-        done++;
-      } catch (e) { /* skip missing files */ }
+      // Implicit same-name station audio comes through as a bare name (no ext);
+      // resolve it to an existing audio file before copying.
+      var candidates = [files[i]];
+      if (!/\.\w+$/.test(files[i])) {
+        AUDIO_EXT.forEach(function (ext) { candidates.push(files[i] + ext); });
+      }
+      for (var c = 0; c < candidates.length; c++) {
+        try {
+          await LE.api.copyFile(srcCompany + "/" + candidates[c], dstCompany + "/" + candidates[c]);
+          done++;
+          break;
+        } catch (e) { /* try next extension / missing file */ }
+      }
     }
     if (done) LE.toast("已复制 " + done + " 个音频文件", "success");
   }

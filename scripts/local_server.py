@@ -3,6 +3,7 @@ import argparse
 import io
 import json
 import posixpath
+import struct
 import zipfile
 from datetime import datetime
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
@@ -13,6 +14,171 @@ from urllib.parse import unquote
 class LocalHandler(SimpleHTTPRequestHandler):
     root_dir: Path = Path.cwd()
     data_root: Path = Path.cwd() / "userdata" / "local"
+    _legacy_audio_cache: dict[str, tuple[int, int, bytes]] = {}
+    _LEGACY_AUDIO_CACHE_LIMIT = 64
+
+    # IMA ADPCM tables from the public WAV specification.  A number of legacy
+    # announcement libraries use this codec while keeping a misleading .mp3
+    # suffix.  Chromium/WebView does not reliably decode ADPCM in a WAV
+    # container, so those bytes are converted in-memory to PCM WAV for
+    # playback.  Original user files are never rewritten.
+    _IMA_STEP_TABLE = (
+        7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31,
+        34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130,
+        143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449,
+        494, 544, 598, 658, 724, 796, 876, 963, 1060, 1166, 1282, 1411,
+        1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026,
+        4429, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442,
+        11487, 12635, 13899, 15289, 16818, 18500, 20350, 22385, 24623,
+        27086, 29794, 32767,
+    )
+    _IMA_INDEX_TABLE = (-1, -1, -1, -1, 2, 4, 6, 8)
+
+    @classmethod
+    def _decode_ima_nibble(cls, predictor, index, nibble):
+        step = cls._IMA_STEP_TABLE[index]
+        delta = step >> 3
+        if nibble & 1:
+            delta += step >> 2
+        if nibble & 2:
+            delta += step >> 1
+        if nibble & 4:
+            delta += step
+        predictor = predictor - delta if nibble & 8 else predictor + delta
+        predictor = max(-32768, min(32767, predictor))
+        index = max(0, min(88, index + cls._IMA_INDEX_TABLE[nibble & 7]))
+        return predictor, index
+
+    @classmethod
+    def _legacy_ima_adpcm_as_pcm_wav(cls, path: Path):
+        """Return a PCM WAV rendition for IMA ADPCM files, otherwise None."""
+        if path.suffix.lower() not in {".mp3", ".wav"}:
+            return None
+        try:
+            stat = path.stat()
+            cache_key = str(path)
+            cached = cls._legacy_audio_cache.get(cache_key)
+            if cached and cached[:2] == (stat.st_mtime_ns, stat.st_size):
+                return cached[2]
+            raw = path.read_bytes()
+        except OSError:
+            return None
+
+        if raw[:4] != b"RIFF" or raw[8:12] != b"WAVE":
+            return None
+        chunks = {}
+        offset = 12
+        while offset + 8 <= len(raw):
+            chunk_id = raw[offset:offset + 4]
+            chunk_size = struct.unpack_from("<I", raw, offset + 4)[0]
+            data_start = offset + 8
+            data_end = data_start + chunk_size
+            if data_end > len(raw):
+                return None
+            chunks.setdefault(chunk_id, raw[data_start:data_end])
+            offset = data_end + (chunk_size & 1)
+
+        fmt = chunks.get(b"fmt ")
+        adpcm_data = chunks.get(b"data")
+        if not fmt or not adpcm_data or len(fmt) < 20:
+            return None
+        format_tag, channels, sample_rate, _, block_align, bits_per_sample = struct.unpack_from("<HHIIHH", fmt)
+        if format_tag != 0x0011 or channels not in (1, 2) or bits_per_sample != 4 or block_align < channels * 4:
+            return None
+
+        pcm = bytearray()
+        for block_start in range(0, len(adpcm_data), block_align):
+            block = adpcm_data[block_start:block_start + block_align]
+            if len(block) < channels * 4:
+                continue
+            predictors = []
+            indices = []
+            samples = []
+            for channel in range(channels):
+                header_start = channel * 4
+                predictor, index, _ = struct.unpack_from("<hBB", block, header_start)
+                if index > 88:
+                    return None
+                predictors.append(predictor)
+                indices.append(index)
+                samples.append([predictor])
+
+            encoded = block[channels * 4:]
+            if channels == 1:
+                for value in encoded:
+                    for nibble in (value & 0x0F, value >> 4):
+                        predictors[0], indices[0] = cls._decode_ima_nibble(predictors[0], indices[0], nibble)
+                        samples[0].append(predictors[0])
+            else:
+                # Stereo IMA WAV stores four-byte ADPCM groups channel by
+                # channel.  Decode each group before emitting interleaved PCM.
+                encoded_offset = 0
+                while encoded_offset < len(encoded):
+                    for channel in range(channels):
+                        group = encoded[encoded_offset:encoded_offset + 4]
+                        encoded_offset += len(group)
+                        for value in group:
+                            for nibble in (value & 0x0F, value >> 4):
+                                predictors[channel], indices[channel] = cls._decode_ima_nibble(
+                                    predictors[channel], indices[channel], nibble
+                                )
+                                samples[channel].append(predictors[channel])
+
+            frame_count = min(len(channel_samples) for channel_samples in samples)
+            for frame in range(frame_count):
+                for channel in range(channels):
+                    pcm.extend(struct.pack("<h", samples[channel][frame]))
+
+        if not pcm:
+            return None
+        pcm_wav = (
+            b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVE"
+            + b"fmt " + struct.pack("<IHHIIHH", 16, 1, channels, sample_rate,
+                                      sample_rate * channels * 2, channels * 2, 16)
+            + b"data" + struct.pack("<I", len(pcm)) + bytes(pcm)
+        )
+        if len(cls._legacy_audio_cache) >= cls._LEGACY_AUDIO_CACHE_LIMIT:
+            cls._legacy_audio_cache.pop(next(iter(cls._legacy_audio_cache)))
+        cls._legacy_audio_cache[cache_key] = (stat.st_mtime_ns, stat.st_size, pcm_wav)
+        return pcm_wav
+
+    def send_head(self):
+        """Serve legacy IMA ADPCM announcement audio as browser-safe PCM WAV."""
+        try:
+            path = Path(self.translate_path(self.path))
+            pcm_wav = self._legacy_ima_adpcm_as_pcm_wav(path)
+        except (OSError, ValueError, struct.error):
+            pcm_wav = None
+        if pcm_wav is not None:
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(pcm_wav)))
+            self.end_headers()
+            return io.BytesIO(pcm_wav)
+        return super().send_head()
+
+    def guess_type(self, path):
+        """Keep browser decoding aligned with the file's actual container.
+
+        Some legacy announcement libraries store IMA ADPCM WAV data with a
+        ``.mp3`` filename.  SimpleHTTPRequestHandler would label those bytes
+        as audio/mpeg solely from the suffix, so Chromium tries an MP3 decoder
+        and every item fails even though the file exists.  Inspect only MP3-
+        named local files; genuine MP3 files keep the standard MIME type.
+        """
+        content_type = super().guess_type(path)
+        if content_type != "audio/mpeg" or not path.lower().endswith(".mp3"):
+            return content_type
+        try:
+            with open(path, "rb") as audio_file:
+                header = audio_file.read(12)
+            if header[:4] == b"RIFF" and header[8:12] == b"WAVE":
+                return "audio/wav"
+        except OSError:
+            # Let SimpleHTTPRequestHandler produce its normal missing-file
+            # response; MIME detection must never affect file serving.
+            pass
+        return content_type
 
     def _send_json(self, code: int, payload: dict):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -741,6 +907,7 @@ class LocalHandler(SimpleHTTPRequestHandler):
                 zinfo.flag_bits |= 0x800
                 zf.writestr(zinfo, content)
             AUDIO_EXT = [".wav", ".mp3", ".m4a", ".WAV", ".MP3", ".M4A"]
+            written = set()
             for fname in sorted(audio_files):
                 arcname = (company + "/" + fname) if company else fname
                 fp = self._safe_rel(company + "/" + fname if company else fname)
@@ -768,6 +935,12 @@ class LocalHandler(SimpleHTTPRequestHandler):
                                     arcname = fname + ext
                                     break
                 if found:
+                    # Dedupe: an implicit station name (`测试站A`) and the
+                    # company-dir scan (`测试站A.mp3`) both resolve to the same
+                    # arcname — writing it twice bloats the tabl.
+                    if arcname in written:
+                        continue
+                    written.add(arcname)
                     zinfo = zipfile.ZipInfo(arcname)
                     zinfo.flag_bits |= 0x800
                     with open(found, "rb") as af:
