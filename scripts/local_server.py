@@ -301,6 +301,8 @@ class LocalHandler(SimpleHTTPRequestHandler):
                 self._api_delete(data)
             elif api == "/api/file/rename":
                 self._api_rename(data)
+            elif api == "/api/file/rename_company":
+                self._api_rename_company(data)
             elif api == "/api/file/reindex":
                 self._api_reindex(data)
             elif api == "/api/file/restore_latest":
@@ -427,6 +429,71 @@ class LocalHandler(SimpleHTTPRequestHandler):
         src.rename(dst)
         self._send_json(200, {"ok": True, "fromRelPath": src_rel, "toRelPath": dst_rel})
 
+    def _read_line_index(self):
+        """Read the user-data index without falling back to legacy output data."""
+        index_path = self.data_root / "index.json"
+        if not index_path.exists():
+            return {"version": "V1.6.1", "companies": []}
+        try:
+            loaded = json.loads(index_path.read_text(encoding="utf-8-sig"))
+        except Exception as exc:
+            raise ValueError(f"无法解析 index.json：{exc}")
+        if not isinstance(loaded, dict):
+            raise ValueError("index.json 格式无效")
+        loaded.setdefault("companies", [])
+        return loaded
+
+    def _write_line_index_atomic(self, index_obj):
+        """Replace index.json atomically to avoid half-written index files."""
+        index_path = self.data_root / "index.json"
+        tmp_path = index_path.with_name(index_path.name + ".tmp")
+        tmp_path.write_text(json.dumps(index_obj, ensure_ascii=False, indent=4), encoding="utf-8")
+        tmp_path.replace(index_path)
+
+    def _api_rename_company(self, data):
+        """Rename a company directory and index entries as one rollback-safe operation."""
+        old_name = str(data.get("oldName", "")).strip()
+        new_name = str(data.get("newName", "")).strip()
+        self._validate_leaf_name(old_name)
+        self._validate_leaf_name(new_name)
+        if old_name == new_name:
+            self._send_json(200, {"ok": True, "unchanged": True})
+            return
+
+        src = self._safe_rel(old_name)
+        dst = self._safe_rel(new_name)
+        if not src.exists() or not src.is_dir():
+            self._send_json(404, {"ok": False, "error": "源公司目录不存在"})
+            return
+        if dst.exists():
+            self._send_json(409, {"ok": False, "error": "目标公司目录已存在"})
+            return
+
+        index_obj = self._read_line_index()
+        company = next((c for c in index_obj.get("companies", []) if c.get("name") == old_name), None)
+        if company is None:
+            self._send_json(404, {"ok": False, "error": "index.json 中未找到源公司"})
+            return
+
+        src.rename(dst)
+        try:
+            company["name"] = new_name
+            for line in company.get("lines", []):
+                file_rel = str(line.get("file", ""))
+                if file_rel == old_name or file_rel.startswith(old_name + "/"):
+                    line["file"] = new_name + file_rel[len(old_name):]
+            self._write_line_index_atomic(index_obj)
+        except Exception as exc:
+            try:
+                dst.rename(src)
+            except Exception as rollback_exc:
+                self._send_json(500, {"ok": False, "error": f"索引更新失败且目录回滚失败：{exc}; {rollback_exc}"})
+                return
+            self._send_json(500, {"ok": False, "error": f"索引更新失败，已回滚目录改名：{exc}"})
+            return
+
+        self._send_json(200, {"ok": True, "oldName": old_name, "newName": new_name})
+
     def _api_pending_import(self):
         """Handle file association double-click: read pending .tabl, create import session,
         return the SAME preview format as the regular upload flow (used by showImportPreviewDialog)."""
@@ -536,26 +603,30 @@ class LocalHandler(SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True, "restoredRelPath": ""})
 
     def _api_reindex(self, _data):
-        scripts_dir = self.root_dir / "scripts"
-        convert_script = scripts_dir / "convert_to_v15_package.py"
-        if not convert_script.exists():
-            self._send_json(404, {"ok": False, "error": "转换脚本不存在"})
-            return
+        # Reindex must describe the real user library.  The former conversion
+        # from legacy output/ could overwrite Editor changes with stale paths.
+        index_obj = self._read_line_index()
+        existing_names = {}
+        for company in index_obj.get("companies", []):
+            for line in company.get("lines", []):
+                file_rel = str(line.get("file", "")).replace("\\", "/")
+                if file_rel:
+                    existing_names[file_rel] = str(line.get("name", ""))
 
-        import subprocess
-        import sys
-        result = subprocess.run(
-            [sys.executable, str(convert_script)],
-            cwd=str(self.root_dir),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            self._send_json(500, {"ok": False, "error": result.stderr or result.stdout or "reindex failed"})
-            return
+        companies = []
+        for company_dir in sorted(self.data_root.iterdir(), key=lambda p: p.name.lower()):
+            if not company_dir.is_dir() or company_dir.name.startswith("."):
+                continue
+            lines = []
+            for ini_path in sorted(company_dir.glob("*.ini"), key=lambda p: p.name.lower()):
+                rel = f"{company_dir.name}/{ini_path.name}"
+                lines.append({"name": existing_names.get(rel) or ini_path.stem, "file": rel})
+            if lines:
+                companies.append({"name": company_dir.name, "lines": lines, "mtime": int(company_dir.stat().st_mtime)})
 
-        self._send_json(200, {"ok": True, "message": result.stdout.strip()})
+        index_obj["companies"] = companies
+        self._write_line_index_atomic(index_obj)
+        self._send_json(200, {"ok": True, "message": f"已按实际目录重建索引：{len(companies)} 家公司"})
 
     def _api_list(self, data):
         rel = data.get("relPath", "")

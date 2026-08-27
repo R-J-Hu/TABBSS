@@ -42,6 +42,7 @@ window.LineEditor = (function () {
     },
     deleteFile(relPath) { console.log("[api] deleteFile: " + relPath); return this._call("/api/file/delete", { relPath }); },
     renameFile(from, to) { return this._call("/api/file/rename", { fromRelPath: from, toRelPath: to }); },
+    renameCompany(oldName, newName) { return this._call("/api/file/rename_company", { oldName, newName }); },
     copyFile(from, to)  { return this._call("/api/file/copy", { fromRelPath: from, toRelPath: to }); },
     listDir(relPath, includeMeta) { return this._call("/api/file/list", { relPath, includeMeta }); },
     listMedia(relPath)  { return this._call("/api/file/list_media", { relPath }); },
@@ -113,6 +114,22 @@ window.LineEditor = (function () {
       return model.templates["up" + key.slice(4)] || [];
     }
     return t;
+  };
+
+  // 单向环线只会由 Player 读取上行数据。下行区块可为兼容旧 INI 而
+  // 保留在文件中，但不能参与校验、音频收集或复制。
+  LE.activeDirections = function (model) {
+    return model && model.mode === "loop" ? ["up"] : ["up", "down"];
+  };
+
+  LE.activeTemplateKeys = function (model) {
+    var keys = ["upFirstDepart", "upDepart", "upArrive", "upTerminalDepart", "upTerminalArrive"];
+    if (!model || model.mode !== "loop") {
+      keys.splice(1, 0, "downFirstDepart");
+      keys.splice(4, 0, "downDepart", "downArrive");
+      keys.push("downTerminalDepart", "downTerminalArrive");
+    }
+    return keys;
   };
 
   /** Find a continuous subsequence in a token array */
@@ -267,7 +284,9 @@ window.LineEditor = (function () {
 
     // Parse station rules
     var upRules = parseStationRules(text, model.upStationsCn, "up");
-    var downRules = parseStationRules(text, model.downStationsCn, "down");
+    var downRules = isLoop
+      ? { overrides: {}, audioMap: {}, audioMapEn: {} }
+      : parseStationRules(text, model.downStationsCn, "down");
     model.stationOverrides.up = upRules.overrides;
     model.stationOverrides.down = downRules.overrides;
     model.stationAudioMap = upRules.audioMap;
@@ -348,18 +367,19 @@ window.LineEditor = (function () {
     // Announcement rules
     a("#报站规则");
     a("##全局默认模版类");
-    a("上下行相同=" + (model.isUpDownSame ? "true" : "false"));
+    var sharedRules = model.mode === "loop" || model.isUpDownSame;
+    a("上下行相同=" + (sharedRules ? "true" : "false"));
 
     var t = model.templates;
     a("上行首站预报规则=" + serializeTokens(t.upFirstDepart));
-    if (!model.isUpDownSame) {
+    if (!sharedRules) {
       a("下行首站预报规则=" + serializeTokens(t.downFirstDepart));
     } else {
       a("下行首站预报规则=");
     }
     a("默认上行到站播报规则=" + serializeTokens(t.upArrive));
     a("默认上行预报规则=" + serializeTokens(t.upDepart));
-    if (!model.isUpDownSame) {
+    if (!sharedRules) {
       a("默认下行预报规则=" + serializeTokens(t.downDepart));
       a("默认下行到站播报规则=" + serializeTokens(t.downArrive));
     } else {
@@ -368,7 +388,7 @@ window.LineEditor = (function () {
     }
     a("上行终点站预报规则=" + serializeTokens(t.upTerminalDepart));
     a("上行终点站报站规则=" + serializeTokens(t.upTerminalArrive));
-    if (!model.isUpDownSame) {
+    if (!sharedRules) {
       a("下行终点站预报规则=" + serializeTokens(t.downTerminalDepart));
       a("下行终点站报站规则=" + serializeTokens(t.downTerminalArrive));
     } else {
@@ -602,6 +622,8 @@ window.LineEditor = (function () {
   /* ── Collect all file references from a line model ── */
   LE.collectLineFileReferences = function (model) {
     var files = [];
+    var activeDirections = LE.activeDirections(model);
+    var activeTemplateKeys = LE.activeTemplateKeys(model);
 
     function addRef(file) {
       if (!file) return;
@@ -612,12 +634,12 @@ window.LineEditor = (function () {
     }
 
     // Templates
-    for (var k in model.templates) {
-      (model.templates[k] || []).forEach(addRef);
-    }
+    activeTemplateKeys.forEach(function (key) {
+      (LE.tplTokens(model, key) || []).forEach(addRef);
+    });
 
     // Station overrides
-    ["up", "down"].forEach(function (dir) {
+    activeDirections.forEach(function (dir) {
       var ov = model.stationOverrides[dir] || {};
       for (var si in ov) {
         var o = ov[si];
@@ -629,8 +651,14 @@ window.LineEditor = (function () {
     });
 
     // Station audio maps
-    for (var k2 in model.stationAudioMap) { addRef(model.stationAudioMap[k2]); }
-    for (var k3 in model.stationAudioMapEn) { addRef(model.stationAudioMapEn[k3]); }
+    for (var k2 in model.stationAudioMap) {
+      if (model.mode === "loop" && (model.upStationsCn || []).indexOf(k2) < 0) continue;
+      addRef(model.stationAudioMap[k2]);
+    }
+    for (var k3 in model.stationAudioMapEn) {
+      if (model.mode === "loop" && k3.indexOf("down:") === 0) continue;
+      addRef(model.stationAudioMapEn[k3]);
+    }
 
     // Tips
     (model.tipItems || []).forEach(function (tip) {
@@ -638,7 +666,7 @@ window.LineEditor = (function () {
     });
 
     // Implicit same-name files — check both ZH and EN, respect overrides
-    ["up", "down"].forEach(function (dir) {
+    activeDirections.forEach(function (dir) {
       var stations = dir === "up" ? (model.upStationsCn || []) : (model.downStationsCn || []);
       var tplKeys = dir === "up"
         ? ["upDepart", "upArrive", "upFirstDepart", "upTerminalDepart", "upTerminalArrive"]
@@ -684,6 +712,8 @@ window.LineEditor = (function () {
   LE.validateAll = async function (model, companyRelPath) {
     var lineErrors = [];
     var audioWarnings = [];
+    var isLoop = model.mode === "loop";
+    var activeDirections = LE.activeDirections(model);
 
     /* ── Line file checks ── */
     // 1. Line name required
@@ -691,27 +721,29 @@ window.LineEditor = (function () {
       lineErrors.push({ field: "lineName", module: "基础信息", message: "线路名称为必填项" });
     }
     // 2. Station count
-    if (!model.upStationsCn.length || !model.downStationsCn.length) {
-      lineErrors.push({ field: "stations", module: "车站信息", message: "上/下行至少需要1个站点" });
+    if (!model.upStationsCn.length || (!isLoop && !model.downStationsCn.length)) {
+      lineErrors.push({ field: "stations", module: "车站信息", message: isLoop ? "环线至少需要1个站点" : "上/下行至少需要1个站点" });
     }
     // Auto-pad shorter EN arrays to match CN length
     while (model.upStationsEn.length < model.upStationsCn.length) model.upStationsEn.push("");
-    while (model.downStationsEn.length < model.downStationsCn.length) model.downStationsEn.push("");
+    if (!isLoop) while (model.downStationsEn.length < model.downStationsCn.length) model.downStationsEn.push("");
     while (model.upStationsCn.length < model.upStationsEn.length) model.upStationsCn.push("");
-    while (model.downStationsCn.length < model.downStationsEn.length) model.downStationsCn.push("");
+    if (!isLoop) while (model.downStationsCn.length < model.downStationsEn.length) model.downStationsCn.push("");
     // 3. Empty station names
     var emptyUpNames = [];
     model.upStationsCn.forEach(function (n, i) { if (!n || !n.trim()) emptyUpNames.push(i + 1); });
     if (emptyUpNames.length) {
       lineErrors.push({ field: "upStations", module: "车站信息", message: "上行第 " + emptyUpNames.join(", ") + " 站中文名为空" });
     }
-    var emptyDownNames = [];
-    model.downStationsCn.forEach(function (n, i) { if (!n || !n.trim()) emptyDownNames.push(i + 1); });
-    if (emptyDownNames.length) {
-      lineErrors.push({ field: "downStations", module: "车站信息", message: "下行第 " + emptyDownNames.join(", ") + " 站中文名为空" });
+    if (!isLoop) {
+      var emptyDownNames = [];
+      model.downStationsCn.forEach(function (n, i) { if (!n || !n.trim()) emptyDownNames.push(i + 1); });
+      if (emptyDownNames.length) {
+        lineErrors.push({ field: "downStations", module: "车站信息", message: "下行第 " + emptyDownNames.join(", ") + " 站中文名为空" });
+      }
     }
     // 4. Template token syntax
-    var tKeys = ["upFirstDepart", "downFirstDepart", "upDepart", "upArrive", "downDepart", "downArrive", "upTerminalDepart", "upTerminalArrive", "downTerminalDepart", "downTerminalArrive"];
+    var tKeys = LE.activeTemplateKeys(model);
     var tLabels = {
       upFirstDepart: "首站上行预报规则", downFirstDepart: "首站下行预报规则",
       upDepart: "默认上行预报规则", upArrive: "默认上行到站播报规则",
@@ -750,13 +782,12 @@ window.LineEditor = (function () {
         }
 
         // Templates
-        for (var k in model.templates) {
-          var tokens = model.templates[k] || [];
-          tokens.forEach(function (t) { addRef(t, tLabels[k] || k); });
-        }
+        tKeys.forEach(function (key) {
+          (LE.tplTokens(model, key) || []).forEach(function (t) { addRef(t, tLabels[key] || key); });
+        });
 
         // Station overrides (depart, arrive, zhAudioRel, enAudioRel)
-        ["up", "down"].forEach(function (dir) {
+        activeDirections.forEach(function (dir) {
           var dirLabel = dir === "up" ? "上行" : "下行";
           var overrides = model.stationOverrides[dir] || {};
           var stations = dir === "up" ? model.upStationsCn : model.downStationsCn;
@@ -781,9 +812,11 @@ window.LineEditor = (function () {
 
         // Station audio maps (keys are station names for zh, dir:stopIdx for en)
         for (var k in model.stationAudioMap) {
+          if (isLoop && (model.upStationsCn || []).indexOf(k) < 0) continue;
           addRef(model.stationAudioMap[k], k + "站中文语音映射");
         }
         for (var k2 in model.stationAudioMapEn) {
+          if (isLoop && k2.indexOf("down:") === 0) continue;
           var parts = k2.split(":");
           var dirLabel = (parts[0] === "up") ? "上行" : "下行";
           var sIdx = parseInt(parts[1]) || 0;
@@ -802,7 +835,7 @@ window.LineEditor = (function () {
         mediaNames.forEach(function (mn) { mediaBaseLower[mn.replace(/\.\w+$/, "").toLowerCase()] = true; });
 
         // Implicit same-name file checks (本站中文/英文同名文件)
-        ["up", "down"].forEach(function (dir) {
+        activeDirections.forEach(function (dir) {
           var stations = dir === "up" ? (model.upStationsCn || []) : (model.downStationsCn || []);
           var tplKeys = dir === "up"
             ? ["upDepart", "upArrive", "upFirstDepart", "upTerminalDepart", "upTerminalArrive"]

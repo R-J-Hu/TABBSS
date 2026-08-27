@@ -1,6 +1,6 @@
-window.TABBSS_JS_VER = "259"; // cache-debug marker for dev panel
+window.TABBSS_JS_VER = "261"; // cache-debug marker for dev panel
 window.TABBSS_VERSION = "1.6.1";  // from VERSION
-window.TABBSS_BUILD = "259";    // must match index.html build badge
+window.TABBSS_BUILD = "261";    // must match index.html build badge
 
 // ── Global error surface (Release builds have no console) ──
 window.addEventListener("error", function (ev) {
@@ -2008,36 +2008,23 @@ async function runArrival() {
 
 function runReplay() {
   if (!state.route) return;
-  const stations = getStations();
-  if (!stations.length) return;
+  // 重播必须与原预报共用同一条组队列逻辑；否则会绕过各站特殊规则。
+  const snap = lastMainPlayback && lastMainPlayback.kind === "forecast"
+    ? lastMainPlayback
+    : { kind: "forecast", direction: state.direction, headingStopNumber: state.stopNumber, wasFirstStop: false };
+  const stations = stationsForDirection(snap.direction);
+  if (!stations.length || snap.headingStopNumber < 1 || snap.headingStopNumber > stations.length) return;
 
-  const headingStopNumber = state.stopNumber;
-  const here = stationAtOneBased(headingStopNumber);
-  const isTerminal = stations.length > 0 && headingStopNumber === stations.length;
-  // V1.6: For terminal forecast, 本站 = destination (last station), not current
-  const benZhan = isTerminal ? here : stationAtOneBased(headingStopNumber - 1);
-  const ctx = {
-    ben_zhan: benZhan,
-    xia_zhan: here,
-    special_station: here,
-    stop_index: headingStopNumber,
-    xia_stop_index: headingStopNumber,
-    ben_zhan_index: isTerminal ? headingStopNumber : Math.max(1, headingStopNumber - 1),
-    xia_zhan_index: headingStopNumber,
-  };
-  const tpl = forecastTemplateForHeadingIndex(headingStopNumber, stations, state.direction);
-  const q = toAudioEntries(tpl || state.route.templates.depart, ctx);
+  const q = buildForecastQueueReplay(snap);
   if (!q.length) return;
 
+  state.direction = snap.direction;
+  state.stopNumber = snap.headingStopNumber;
+  directionSelect.value = state.direction;
   state.awaitingArrival = true;
   refreshTripUi();
 
-  lastMainPlayback = {
-    kind: "forecast",
-    direction: state.direction,
-    headingStopNumber,
-    wasFirstStop: false,
-  };
+  lastMainPlayback = snap;
 
   playQueue(q);
 }

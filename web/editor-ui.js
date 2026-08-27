@@ -460,21 +460,10 @@
   };
 
   LE.renameCompany = function (oldName, newName) {
-    var oldPath = oldName;
-    var newPath = newName;
-    LE.api.renameFile(oldPath, newPath).then(function () {
-      if (LE.mainState && LE.mainState.newIndex) {
-        var idx = LE.mainState.newIndex;
-        var c = idx.companies.find(function (c) { return c.name === oldName; });
-        if (c) c.name = newName;
-        // 保留原有位置：不重新按字母排序，重命名后公司停留在原索引处
-        // Update line file paths
-        (c ? c.lines : []).forEach(function (l) {
-          l.file = l.file.replace(oldPath + "/", newPath + "/");
-        });
-        LE.api.writeFile("index.json", JSON.stringify(idx, null, 4)).catch(function () {});
-        if (LE.mainCallbacks.refreshIndex) LE.mainCallbacks.refreshIndex();
-      }
+    LE.api.renameCompany(oldName, newName).then(async function () {
+      // Directory and index are committed together on the server; do not
+      // overwrite that result with a potentially stale browser-side index.
+      if (LE.mainCallbacks.refreshIndex) await LE.mainCallbacks.refreshIndex();
       LE.renderL0();
       LE.toast("已重命名：" + oldName + " ➜ " + newName, "success");
     }).catch(function (e) { LE.toast("重命名失败：" + e.message, "error"); });
@@ -2191,19 +2180,17 @@
 
   /* ── Station Default Template Resolution ── */
   function getStationDefaultTemplate(model, dir, stopIdx, field) {
-    var tpl = model.templates;
-    if (!tpl) return [];
     var prefix = dir === "up" ? "up" : "down";
     var stops = dir === "up" ? model.upStationsCn : model.downStationsCn;
     var n = stops.length;
     if (field === "depart") {
-      if (stopIdx === 2 && tpl[prefix + "FirstDepart"] && tpl[prefix + "FirstDepart"].length) return tpl[prefix + "FirstDepart"];
-      if (stopIdx === n && tpl[prefix + "TerminalDepart"] && tpl[prefix + "TerminalDepart"].length) return tpl[prefix + "TerminalDepart"];
-      return tpl[prefix + "Depart"] || [];
+      if (stopIdx === 2 && LE.tplTokens(model, prefix + "FirstDepart").length) return LE.tplTokens(model, prefix + "FirstDepart");
+      if (stopIdx === n && LE.tplTokens(model, prefix + "TerminalDepart").length) return LE.tplTokens(model, prefix + "TerminalDepart");
+      return LE.tplTokens(model, prefix + "Depart");
     }
     if (field === "arrive") {
-      if (stopIdx === n && tpl[prefix + "TerminalArrive"] && tpl[prefix + "TerminalArrive"].length) return tpl[prefix + "TerminalArrive"];
-      return tpl[prefix + "Arrive"] || [];
+      if (stopIdx === n && LE.tplTokens(model, prefix + "TerminalArrive").length) return LE.tplTokens(model, prefix + "TerminalArrive");
+      return LE.tplTokens(model, prefix + "Arrive");
     }
     if (field === "zhAudioRel") {
       return ["【本站中文文件】"];
