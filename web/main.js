@@ -1,6 +1,6 @@
-window.TABBSS_JS_VER = "261"; // cache-debug marker for dev panel
+window.TABBSS_JS_VER = "262"; // cache-debug marker for dev panel
 window.TABBSS_VERSION = "1.6.1";  // from VERSION
-window.TABBSS_BUILD = "261";    // must match index.html build badge
+window.TABBSS_BUILD = "262";    // must match index.html build badge
 
 // ── Global error surface (Release builds have no console) ──
 window.addEventListener("error", function (ev) {

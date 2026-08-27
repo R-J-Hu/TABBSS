@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from pathlib import Path
 
@@ -511,8 +512,20 @@ def merge_update_lines(app_dir: Path, data_root: Path) -> dict:
         existing["companies"] = sorted(existing.get("companies", []), key=lambda c: c.get("name", ""))
         index_path.write_text(json.dumps(existing, ensure_ascii=False, indent=4), encoding="utf-8")
 
-    shutil.rmtree(app_dir / ".update_package", ignore_errors=True)
-    return {"merged": merged, "removed_staging": True}
+    # Remove the staging dir. A running app instance can briefly hold a handle
+    # to files under it (WinError 32), so retry a few times before giving up;
+    # residue is still cleaned up by the next installer/upgrade.
+    staging_root = app_dir / ".update_package"
+    if staging_root.exists():
+        for _attempt in range(5):
+            try:
+                shutil.rmtree(staging_root)
+                break
+            except OSError:
+                time.sleep(0.5)
+        if staging_root.exists():
+            print(f"WARN: could not remove {staging_root} (possibly locked by a running instance)")
+    return {"merged": merged, "removed_staging": not staging_root.exists()}
 
 
 def main():
