@@ -33,9 +33,6 @@ GITEE_API = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 ROOT = Path(__file__).resolve().parent.parent
 VERSION_FILE = ROOT / "VERSION"
 
-AUDIO_RE = re.compile(r'\.(mp3|wav|m4a)$', re.IGNORECASE)
-
-
 def parse_version(v: str) -> tuple:
     """Parse version string into comparable tuple.
 
@@ -418,114 +415,380 @@ def launch_installer(path: Path, detached: bool = False) -> bool:
         return False
 
 
-def _collect_referenced_audio(ini_path: Path) -> set:
-    """Parse an INI and return referenced audio filenames."""
-    audio = set()
+def _read_data_index(index_path: Path) -> tuple[dict, bool]:
+    """Read an index and report whether it was structurally usable."""
+    if not index_path.exists():
+        return {"version": "V1.6.1", "companies": []}, False
     try:
-        text = ini_path.read_text(encoding="utf-8", errors="replace")
-        for m in re.finditer(r'"([^"]+)"', text):
-            fname = m.group(1)
-            if AUDIO_RE.search(fname):
-                audio.add(fname)
+        loaded = json.loads(index_path.read_text(encoding="utf-8-sig"))
+        if not isinstance(loaded, dict) or not isinstance(loaded.get("companies", []), list):
+            raise ValueError("invalid index structure")
+        loaded.setdefault("version", "V1.6.1")
+        loaded.setdefault("companies", [])
+        return loaded, True
+    except Exception:
+        return {"version": "V1.6.1", "companies": []}, False
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _atomic_copy(source: Path, target: Path):
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".installing")
+    shutil.copy2(source, tmp)
+    os.replace(tmp, target)
+
+
+def _copy_missing_tree(source: Path, target: Path) -> list[str]:
+    """Union-copy every payload file except index.json; never replace user files."""
+    copied = []
+    if not source.exists():
+        return copied
+    for src in sorted(source.rglob("*"), key=lambda p: str(p).lower()):
+        if not src.is_file() or src.relative_to(source).as_posix() == "index.json":
+            continue
+        rel = src.relative_to(source)
+        dst = target / rel
+        if dst.exists():
+            continue
+        _atomic_copy(src, dst)
+        copied.append(rel.as_posix())
+    return copied
+
+
+def _migrate_legacy_output_to_compat(app_dir: Path) -> list[str]:
+    """Recover original Haixia route files from legacy output packages.
+
+    Build 204-264 treated ``output`` as a converted runtime index. Some old or
+    abnormal installations therefore retained a usable 线路信息.ini (and
+    occasionally an ``audio`` copy/link) only below output/packages. Build 265
+    makes the original compatibility library authoritative, so upgrades
+    union-copy recoverable source files there without modifying or deleting
+    the legacy output tree.
+    """
+    output_root = app_dir / "output"
+    compat_root = app_dir / "兼容模式-海峡报站器文件库"
+    if not output_root.is_dir():
+        return []
+
+    copied = []
+    for ini_path in sorted(output_root.rglob("线路信息.ini"), key=lambda p: str(p).lower()):
+        rel_ini = ini_path.relative_to(output_root)
+        if any(part.lower() == "audio" for part in rel_ini.parts[:-1]):
+            continue
+        route_parts = rel_ini.parts[:-1]
+        if route_parts and route_parts[0].lower() == "packages":
+            route_parts = route_parts[1:]
+        if not route_parts or any(part in ("", ".", "..") for part in route_parts):
+            continue
+
+        package_dir = ini_path.parent
+        target_dir = compat_root.joinpath(*route_parts)
+
+        def copy_missing(src: Path, rel: Path):
+            dst = target_dir / rel
+            if dst.exists():
+                return
+            _atomic_copy(src, dst)
+            copied.append((Path("兼容模式-海峡报站器文件库") / Path(*route_parts) / rel).as_posix())
+
+        copy_missing(ini_path, Path("线路信息.ini"))
+
+        # Preserve any non-generated original files stored directly beside the
+        # converted JSON. The legacy "audio" directory is handled separately
+        # because its contents belong at the route root, not under audio/.
+        for src in sorted(package_dir.rglob("*"), key=lambda p: str(p).lower()):
+            if not src.is_file():
+                continue
+            rel = src.relative_to(package_dir)
+            if rel.parts and rel.parts[0].lower() == "audio":
+                continue
+            if rel.as_posix() in ("线路信息.ini", "converted.route.json"):
+                continue
+            copy_missing(src, rel)
+
+        audio_dir = package_dir / "audio"
+        try:
+            audio_source = audio_dir.resolve()
+            same_as_target = audio_source == target_dir.resolve()
+        except OSError:
+            audio_source = audio_dir
+            same_as_target = False
+        if audio_source.is_dir() and not same_as_target:
+            for src in sorted(audio_source.rglob("*"), key=lambda p: str(p).lower()):
+                if src.is_file():
+                    copy_missing(src, src.relative_to(audio_source))
+    return copied
+
+
+def _read_release_manifest(data_root: Path) -> dict[str, str]:
+    manifest_path = data_root / ".release_manifest.json"
+    try:
+        loaded = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        files = loaded.get("files", {})
+        if isinstance(files, dict):
+            return {str(k): str(v) for k, v in files.items()}
     except Exception:
         pass
-    return audio
+    return {}
 
 
-def _copy_line_from_staging(staging_data: Path, data_root: Path, file_rel: str):
-    """Copy a line's .ini + referenced audio from staging into the real data dir.
+def _merge_release_tree(source: Path, target: Path, old_manifest: dict[str, str]):
+    """Install release files while preserving anything the user changed.
 
-    Existing files are never overwritten (union semantics).
+    A file is overwritten only when its current hash matches the hash recorded
+    at the previous successful release install. This lets later releases fix
+    bundled data without reviving Build 262's blanket overwrite risk.
     """
-    src_ini = staging_data / file_rel
-    if not src_ini.exists():
-        return
-    dst_ini = data_root / file_rel
-    if not dst_ini.exists():
-        dst_ini.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_ini, dst_ini)
-
-    company = Path(file_rel).parts[0] if "/" in file_rel else ""
-    for fname in _collect_referenced_audio(src_ini):
-        src_audio = (staging_data / company / fname) if company else (staging_data / fname)
-        if not src_audio.exists():
+    copied = []
+    updated = []
+    managed = {}
+    considered = set()
+    if not source.exists():
+        return copied, updated, managed, considered
+    for src in sorted(source.rglob("*"), key=lambda p: str(p).lower()):
+        if not src.is_file() or src.relative_to(source).as_posix() == "index.json":
             continue
-        dst_audio = (data_root / company / fname) if company else (data_root / fname)
-        if not dst_audio.exists():
-            dst_audio.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_audio, dst_audio)
+        rel = src.relative_to(source)
+        rel_posix = rel.as_posix()
+        considered.add(rel_posix)
+        dst = target / rel
+        src_hash = _sha256_file(src)
+        if not dst.exists():
+            _atomic_copy(src, dst)
+            copied.append(rel_posix)
+            managed[rel_posix] = src_hash
+            continue
+        dst_hash = _sha256_file(dst)
+        if dst_hash == src_hash:
+            managed[rel_posix] = src_hash
+        elif old_manifest.get(rel_posix) == dst_hash:
+            _atomic_copy(src, dst)
+            updated.append(rel_posix)
+            managed[rel_posix] = src_hash
+        # Otherwise the file predates manifests or was edited by the user. It
+        # remains untouched and is deliberately not managed by future updates.
+    return copied, updated, managed, considered
+
+
+def _write_release_manifest(data_root: Path, files: dict[str, str]):
+    manifest_path = data_root / ".release_manifest.json"
+    rendered = json.dumps({"version": 1, "files": files}, ensure_ascii=False, indent=2) + "\n"
+    tmp = manifest_path.with_name(manifest_path.name + ".installing")
+    tmp.write_text(rendered, encoding="utf-8")
+    os.replace(tmp, manifest_path)
+
+
+def _merge_index_records(base: dict, additions: list[dict], data_root: Path) -> tuple[dict, list[str]]:
+    """Merge index metadata and register every real top-level company INI.
+
+    Existing company/line records win. The final disk scan is deliberate: it
+    recovers custom routes that survived on disk after an older installer
+    replaced or corrupted index.json.
+    """
+    result = dict(base)
+    companies = []
+    company_map = {}
+    recovered = []
+
+    def ensure_company(name: str, template: dict | None = None) -> dict | None:
+        name = str(name or "").strip()
+        if not name:
+            return None
+        if name in company_map:
+            return company_map[name]
+        company = dict(template or {})
+        company["name"] = name
+        company["lines"] = []
+        companies.append(company)
+        company_map[name] = company
+        return company
+
+    line_keys = set()
+    for source_index in [base, *additions]:
+        for company_src in source_index.get("companies", []):
+            if not isinstance(company_src, dict):
+                continue
+            company = ensure_company(company_src.get("name", ""), company_src)
+            if company is None:
+                continue
+            for line_src in company_src.get("lines", []):
+                if not isinstance(line_src, dict):
+                    continue
+                file_rel = str(line_src.get("file", "")).replace("\\", "/").lstrip("/")
+                if not file_rel or file_rel in line_keys:
+                    continue
+                line = dict(line_src)
+                line["file"] = file_rel
+                line.setdefault("name", Path(file_rel).stem)
+                company["lines"].append(line)
+                line_keys.add(file_rel)
+
+    if data_root.exists():
+        for company_dir in sorted(data_root.iterdir(), key=lambda p: p.name.lower()):
+            if not company_dir.is_dir() or company_dir.name.startswith("."):
+                continue
+            company = None
+            for ini_path in sorted(company_dir.glob("*.ini"), key=lambda p: p.name.lower()):
+                file_rel = f"{company_dir.name}/{ini_path.name}"
+                if file_rel in line_keys:
+                    continue
+                company = company or ensure_company(company_dir.name)
+                company["lines"].append({"name": ini_path.stem, "file": file_rel})
+                line_keys.add(file_rel)
+                recovered.append(file_rel)
+
+    result["companies"] = companies
+    return result, recovered
+
+
+def _write_index_atomic(index_path: Path, index_obj: dict) -> str | None:
+    """Back up the previous index and atomically publish the merged index."""
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    rendered = json.dumps(index_obj, ensure_ascii=False, indent=4) + "\n"
+    if index_path.exists():
+        try:
+            if index_path.read_text(encoding="utf-8-sig") == rendered:
+                return None
+        except Exception:
+            pass
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        backup = index_path.with_name(f"index.json.pre-install-{stamp}.bak")
+        counter = 1
+        while backup.exists():
+            backup = index_path.with_name(f"index.json.pre-install-{stamp}-{counter}.bak")
+            counter += 1
+        shutil.copy2(index_path, backup)
+        backup_name = backup.name
+    else:
+        backup_name = None
+    tmp = index_path.with_name(index_path.name + ".installing")
+    tmp.write_text(rendered, encoding="utf-8")
+    os.replace(tmp, index_path)
+    return backup_name
+
+
+def _remove_staging_after_success(staging_root: Path) -> bool:
+    for _attempt in range(5):
+        try:
+            shutil.rmtree(staging_root)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError:
+            time.sleep(0.5)
+    return not staging_root.exists()
 
 
 def merge_update_lines(app_dir: Path, data_root: Path) -> dict:
-    """Merge new lines from `app_dir/.update_package/报站线路文件库` into `data_root`.
+    """Safely merge legacy and current installer payloads into user data.
 
-    Union by (company, line file). Existing lines are never overwritten.
-    Returns {merged: [file_rel], removed_staging: bool}.
+    The operation is union-only for user files, semantically merges index.json,
+    recovers on-disk INIs omitted by a damaged index, and removes staging only
+    after all copied files and index entries have been verified.
     """
     app_dir = Path(app_dir)
     data_root = Path(data_root)
-    staging = app_dir / ".update_package" / "报站线路文件库"
-    if not staging.exists():
-        return {"merged": [], "removed_staging": False}
+    staging_roots = [p for p in (app_dir / ".update_package", app_dir / ".install_payload") if p.exists()]
+    if not staging_roots:
+        return {"merged": [], "copied_files": [], "recovered_lines": [], "removed_staging": True}
 
     index_path = data_root / "index.json"
-    existing = {"companies": []}
-    if index_path.exists():
-        try:
-            existing = json.loads(index_path.read_text(encoding="utf-8-sig"))
-        except Exception:
-            existing = {"companies": []}
+    existing_index, existing_valid = _read_data_index(index_path)
+    staging_indexes = []
+    copied_files = []
+    updated_files = []
+    old_manifest = _read_release_manifest(data_root)
+    next_manifest = dict(old_manifest)
+    saw_release_payload = False
 
-    staging_index_path = staging / "index.json"
-    staging_index = {"companies": []}
-    if staging_index_path.exists():
-        try:
-            staging_index = json.loads(staging_index_path.read_text(encoding="utf-8-sig"))
-        except Exception:
-            staging_index = {"companies": []}
+    for staging_root in staging_roots:
+        staging_data = staging_root / "报站线路文件库"
+        if staging_data.exists():
+            staging_index, _ = _read_data_index(staging_data / "index.json")
+            staging_indexes.append(staging_index)
+            if staging_root.name == ".install_payload":
+                saw_release_payload = True
+                copied, updated, managed, considered = _merge_release_tree(staging_data, data_root, old_manifest)
+                copied_files.extend(copied)
+                updated_files.extend(updated)
+                for rel in considered:
+                    next_manifest.pop(rel, None)
+                next_manifest.update(managed)
+            else:
+                copied_files.extend(_copy_missing_tree(staging_data, data_root))
 
-    existing_keys = set()
-    for c in existing.get("companies", []):
-        for l in c.get("lines", []):
-            existing_keys.add((c.get("name", ""), l.get("file", "")))
+        # Other mutable data directories also use union semantics. They have no
+        # archive index and must never overwrite files created by the user.
+        for dirname in ("兼容模式-海峡报站器文件库", "output"):
+            copied = _copy_missing_tree(staging_root / dirname, app_dir / dirname)
+            copied_files.extend(f"{dirname}/{name}" for name in copied)
 
-    merged = []
-    for c in staging_index.get("companies", []):
-        company = c.get("name", "")
-        for l in c.get("lines", []):
-            file_rel = l.get("file", "")
-            key = (company, file_rel)
-            if key in existing_keys:
+    # Upgrades keep output intact for rollback/legacy compatibility, but move
+    # any recoverable original Haixia source into the now-authoritative folder.
+    migrated_compat_files = _migrate_legacy_output_to_compat(app_dir)
+
+    merged_index, recovered_lines = _merge_index_records(existing_index, staging_indexes, data_root)
+    backup_name = _write_index_atomic(index_path, merged_index)
+
+    # Verification is intentionally done before cleanup. Any exception leaves
+    # both the original user files and installer payload available for retry.
+    verified_index, verified_valid = _read_data_index(index_path)
+    if not verified_valid:
+        raise RuntimeError("merged index.json could not be read back")
+    indexed = {
+        str(line.get("file", "")).replace("\\", "/")
+        for company in verified_index.get("companies", [])
+        for line in company.get("lines", [])
+    }
+    disk_inis = {
+        f"{company_dir.name}/{ini.name}"
+        for company_dir in data_root.iterdir()
+        if company_dir.is_dir() and not company_dir.name.startswith(".")
+        for ini in company_dir.glob("*.ini")
+    }
+    if not disk_inis.issubset(indexed):
+        raise RuntimeError("merged index.json omitted on-disk route files")
+    for staging_root in staging_roots:
+        for src in staging_root.rglob("*"):
+            if not src.is_file() or src.name == "index.json":
                 continue
-            _copy_line_from_staging(staging, data_root, file_rel)
-            target = next((x for x in existing.get("companies", []) if x.get("name") == company), None)
-            if not target:
-                target = {"name": company, "lines": []}
-                existing["companies"].append(target)
-            target["lines"].append({"name": l.get("name", ""), "file": file_rel})
-            existing_keys.add(key)
-            merged.append(file_rel)
+            rel = src.relative_to(staging_root)
+            if rel.parts and rel.parts[0] == "报站线路文件库":
+                dst = data_root.joinpath(*rel.parts[1:])
+            else:
+                dst = app_dir / rel
+            if not dst.exists():
+                raise RuntimeError(f"installer payload file was not preserved: {rel.as_posix()}")
 
-    if merged:
-        for c in existing.get("companies", []):
-            c["lines"] = sorted(c.get("lines", []), key=lambda x: x.get("name", ""))
-        existing["companies"] = sorted(existing.get("companies", []), key=lambda c: c.get("name", ""))
-        index_path.write_text(json.dumps(existing, ensure_ascii=False, indent=4), encoding="utf-8")
+    if saw_release_payload:
+        _write_release_manifest(data_root, next_manifest)
 
-    # Remove the staging dir. A running app instance can briefly hold a handle
-    # to files under it (WinError 32), so retry a few times before giving up;
-    # residue is still cleaned up by the next installer/upgrade.
-    staging_root = app_dir / ".update_package"
-    if staging_root.exists():
-        for _attempt in range(5):
-            try:
-                shutil.rmtree(staging_root)
-                break
-            except OSError:
-                time.sleep(0.5)
-        if staging_root.exists():
-            print(f"WARN: could not remove {staging_root} (possibly locked by a running instance)")
-    return {"merged": merged, "removed_staging": not staging_root.exists()}
+    cleanup_ok = all(_remove_staging_after_success(root) for root in staging_roots)
+    if not cleanup_ok:
+        print("WARN: installer staging is locked; it will be retried on next launch")
+    merged = [
+        str(line.get("file", ""))
+        for addition in staging_indexes
+        for company in addition.get("companies", [])
+        for line in company.get("lines", [])
+    ]
+    return {
+        "merged": merged,
+        "copied_files": copied_files,
+        "updated_files": updated_files,
+        "migrated_compat_files": migrated_compat_files,
+        "recovered_lines": recovered_lines,
+        "existing_index_valid": existing_valid,
+        "index_backup": backup_name,
+        "removed_staging": cleanup_ok,
+    }
 
 
 def main():

@@ -313,6 +313,11 @@ def make_zip(version, build, dry=False, release=False, edition_name=None):
             if funct_path.exists():
                 funct = json.loads(funct_path.read_text(encoding="utf-8"))
                 funct.update(edition.get("features", {}))
+                # Never leak the experimental Haixia writer into an edition
+                # unless that edition opts in explicitly.
+                funct["allow_compat_import_archive"] = bool(
+                    edition.get("features", {}).get("allow_compat_import_archive", False)
+                )
                 funct_path.write_text(
                     json.dumps(funct, ensure_ascii=False, indent=2), encoding="utf-8")
                 print(f"  Features: {edition.get('features', {})}")

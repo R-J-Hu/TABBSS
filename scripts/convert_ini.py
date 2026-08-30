@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import re
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -427,31 +429,288 @@ def normalize_route(route_dir: Path, previous: Optional[Dict[str, Any]]) -> dict
         "first_departure_forecast": default_first_departure(),
     }
 
-    fd = infer_first_departure_forecast(
-        route_dir,
-        line.get("线路名", ""),
-        up_stations,
-        down_stations,
-    )
-    fd = merge_welcome_from_tips(fd, tips_list, route_dir, line.get("线路名", ""), up_stations, down_stations)
-    dedupe_first_departure(fd)
-    route["first_departure_forecast"] = fd
-
-    fd = route["first_departure_forecast"]
-    if (
-        previous
-        and not any(fd.get("shared") or [])
-        and not any(fd.get("up") or [])
-        and not any(fd.get("down") or [])
-    ):
-        prev_fd = previous.get("first_departure_forecast")
-        if isinstance(prev_fd, dict):
-            route["first_departure_forecast"] = {
-                "shared": list(prev_fd.get("shared") or []),
-                "up": list(prev_fd.get("up") or []),
-                "down": list(prev_fd.get("down") or []),
-            }
+    # Compatibility mode must reproduce the Haixia INI literally.  Older
+    # builds scanned unrelated files named "欢迎语" and prepended them to the
+    # first forecast even when the INI did not reference those files.  Keep the
+    # legacy JSON field empty so old/static consumers remain schema-compatible,
+    # but never infer or preserve hidden playback entries.
     return route
+
+
+def _archive_safe_leaf(value: str, fallback: str = "海峡线路") -> str:
+    value = re.sub(r'[\\/:*?"<>|]+', "-", str(value or "")).strip(" .")
+    return value or fallback
+
+
+def _archive_audio_files(route_dir: Path) -> list[Path]:
+    return sorted(
+        (p for p in route_dir.rglob("*") if p.is_file() and p.suffix.lower() in AUDIO_EXT_PRIORITY),
+        key=lambda p: p.relative_to(route_dir).as_posix().casefold(),
+    )
+
+
+def _archive_audio_lookup(route_dir: Path, audio_files: list[Path]):
+    by_rel: dict[str, Path] = {}
+    by_name: dict[str, list[Path]] = {}
+    for path in audio_files:
+        rel = path.relative_to(route_dir).as_posix()
+        by_rel[rel.casefold()] = path
+        by_name.setdefault(path.name.casefold(), []).append(path)
+    return by_rel, by_name
+
+
+def _resolve_archive_audio_reference(
+    raw: str,
+    route_dir: Path,
+    by_rel: dict[str, Path],
+    by_name: dict[str, list[Path]],
+) -> Optional[Path]:
+    """Resolve one Haixia audio reference without guessing unrelated files."""
+    value = str(raw or "").strip().strip('"').replace("\\", "/")
+    if not value or value in TOKENS:
+        return None
+    direct = by_rel.get(value.casefold())
+    if direct is not None:
+        return direct
+    matches = by_name.get(Path(value).name.casefold(), [])
+    if len(matches) == 1:
+        return matches[0]
+    if Path(value).suffix.lower() not in AUDIO_EXT_PRIORITY:
+        for ext in AUDIO_EXT_PRIORITY:
+            candidate = value + ext
+            direct = by_rel.get(candidate.casefold())
+            if direct is not None:
+                return direct
+            matches = by_name.get(Path(candidate).name.casefold(), [])
+            if len(matches) == 1:
+                return matches[0]
+    return None
+
+
+def _resolve_archive_audio_sequence(
+    raw: str,
+    route_dir: Path,
+    by_rel: dict[str, Path],
+    by_name: dict[str, list[Path]],
+) -> tuple[list[Path], list[str]]:
+    """Resolve a Haixia field, preserving a real filename that itself contains '+'."""
+    value = str(raw or "").strip()
+    if not value or value in TOKENS:
+        return [], []
+    whole = _resolve_archive_audio_reference(value, route_dir, by_rel, by_name)
+    if whole is not None:
+        return [whole], []
+    if "+" not in value and "|" not in value:
+        return [], [value]
+    resolved: list[Path] = []
+    missing: list[str] = []
+    for part in re.split(r"[+|]", value):
+        part = part.strip()
+        if not part:
+            continue
+        path = _resolve_archive_audio_reference(part, route_dir, by_rel, by_name)
+        if path is None:
+            missing.append(part)
+        else:
+            resolved.append(path)
+    return resolved, missing
+
+
+def build_archive_import(route_dir: Path, route_id: str = "") -> dict:
+    """Build a V1.6 archive-mode INI and a collision-resistant flat audio payload.
+
+    This function is intentionally side-effect free. The caller owns preview,
+    confirmation, filesystem writes, index registration, and rollback.
+    """
+    route_dir = route_dir.resolve()
+    cfg = read_ini(route_dir / "线路信息.ini")
+    route = normalize_route(route_dir, None)
+    up_stations = list(route.get("directions", {}).get("up", {}).get("stations", []) or [])
+    down_stations = list(route.get("directions", {}).get("down", {}).get("stations", []) or [])
+    if not up_stations and not down_stations:
+        raise ValueError("该海峡线路没有可导入的上行或下行站点")
+
+    raw_line_name = str(route.get("name") or route_dir.name).strip()
+    line_name = _archive_safe_leaf(raw_line_name, route_dir.name)
+    if line_name.lower().endswith(".ini"):
+        line_name = line_name[:-4].rstrip(" .") or route_dir.name
+    line_file_name = _archive_safe_leaf(line_name) + ".ini"
+
+    audio_files = _archive_audio_files(route_dir)
+    by_rel, by_name = _archive_audio_lookup(route_dir, audio_files)
+    stable_key = (route_id or route_dir.name).replace("\\", "/")
+    prefix = "HX" + hashlib.sha1(stable_key.encode("utf-8")).hexdigest()[:8] + "_"
+    audio_names: dict[Path, str] = {}
+    used_names: set[str] = set()
+    for path in audio_files:
+        original = path.name
+        stem = path.stem
+        suffix = path.suffix
+        max_stem = max(16, 220 - len(prefix) - len(suffix))
+        candidate = prefix + stem[:max_stem] + suffix
+        folded = candidate.casefold()
+        if folded in used_names:
+            rel_hash = hashlib.sha1(path.relative_to(route_dir).as_posix().encode("utf-8")).hexdigest()[:8]
+            max_stem = max(16, 211 - len(prefix) - len(suffix))
+            candidate = prefix + stem[:max_stem] + "_" + rel_hash + suffix
+            folded = candidate.casefold()
+        used_names.add(folded)
+        audio_names[path.resolve()] = candidate
+
+    warnings: list[str] = []
+
+    def add_warning(raw: str) -> None:
+        msg = "找不到音频：" + str(raw)
+        if msg not in warnings:
+            warnings.append(msg)
+
+    def audio_tokens(raw: str) -> list[str]:
+        paths, missing = _resolve_archive_audio_sequence(raw, route_dir, by_rel, by_name)
+        for item in missing:
+            add_warning(item)
+        return ['"' + audio_names[p.resolve()].replace('"', "") + '"' for p in paths]
+
+    parameter_map = {
+        "【本站】": "{本站中文}",
+        "【下站】": "{下站中文}",
+        "【英文本站】": "{本站英文}",
+        "【本站英文】": "{本站英文}",
+        "【英文下站】": "{下站英文}",
+        "【下站英文】": "{下站英文}",
+        "【起点】": "{起始站中文}",
+        "【终点】": "{终点站中文}",
+    }
+
+    def render_rule(parts: list[str], special_audio: str = "") -> str:
+        tokens: list[str] = []
+        for part in parts or []:
+            value = str(part or "").strip()
+            if not value or value in TOKENS:
+                continue
+            if value in parameter_map:
+                tokens.append(parameter_map[value])
+            elif value == "【特殊语句】":
+                tokens.extend(audio_tokens(special_audio))
+            else:
+                tokens.extend(audio_tokens(value))
+        return ">".join(tokens)
+
+    up_cfg = cfg.get("上行", {})
+    down_cfg = cfg.get("下行", {})
+    up_en = split_stations(up_cfg.get("上行车站英文", ""))
+    down_en = split_stations(down_cfg.get("下行车站英文", ""))
+    up_en += [""] * max(0, len(up_stations) - len(up_en))
+    down_en += [""] * max(0, len(down_stations) - len(down_en))
+
+    templates = route.get("templates", {})
+    arrive_parts = list(templates.get("arrive", []) or [])
+    depart_parts = list(templates.get("depart", []) or [])
+    terminal_depart_parts = list(templates.get("terminal_depart", []) or depart_parts)
+    terminal_arrive_parts = list(templates.get("terminal_arrive", []) or arrive_parts)
+    arrive_rule = render_rule(arrive_parts)
+    depart_rule = render_rule(depart_parts)
+    terminal_depart_rule = render_rule(terminal_depart_parts)
+    terminal_arrive_rule = render_rule(terminal_arrive_parts)
+
+    station_audio_map = route.get("station_audio_map", {}) or {}
+    station_audio_map_en = route.get("station_audio_map_en", {}) or {}
+
+    def mapped_audio(raw: str, fallback: str) -> str:
+        if not raw:
+            return fallback
+        path = _resolve_archive_audio_reference(raw, route_dir, by_rel, by_name)
+        if path is None:
+            add_warning(raw)
+            return fallback
+        return '"' + audio_names[path.resolve()].replace('"', "") + '"'
+
+    now = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    lines: list[str] = []
+    add = lines.append
+    add("#线路信息")
+    add("")
+    add(f"线路名称={line_name}")
+    add("版本=V1.51")
+    add(f"作者={route.get('author', '')}")
+    add(f"创建时间={now}")
+    add(f"更新时间={now}")
+    add("更新日志=由海峡兼容模式导入")
+    add("")
+    add("")
+    add("#车站信息")
+    add(f"环线模式={'true' if up_stations and not down_stations else 'false'}")
+
+    def add_station_list(title: str, values: list[str]) -> None:
+        add("")
+        add(title + "：")
+        add("")
+        for index, value in enumerate(values, 1):
+            add(f"stop_{index}:{value}")
+        add("")
+
+    add_station_list("上行中文站名", up_stations)
+    add_station_list("上行英文站名", up_en[:len(up_stations)])
+    add_station_list("下行中文站名", down_stations)
+    add_station_list("下行英文站名", down_en[:len(down_stations)])
+    add("")
+    add("#显示屏格式")
+    add("")
+    add("（此段本版本暂时放空，后续补充）")
+    add("")
+    add("")
+    add("#报站规则")
+    add("##全局默认模版类")
+    add("上下行相同=true")
+    add(f"上行首站预报规则={depart_rule}")
+    add(f"下行首站预报规则={depart_rule}")
+    add(f"默认上行到站播报规则={arrive_rule}")
+    add(f"默认上行预报规则={depart_rule}")
+    add(f"默认下行预报规则={depart_rule}")
+    add(f"默认下行到站播报规则={arrive_rule}")
+    add(f"上行终点站预报规则={terminal_depart_rule}")
+    add(f"上行终点站报站规则={terminal_arrive_rule}")
+    add(f"下行终点站预报规则={terminal_depart_rule}")
+    add(f"下行终点站报站规则={terminal_arrive_rule}")
+    add("")
+    add("")
+    add("##各站规则类")
+
+    def add_station_rules(direction: str, stations: list[str]) -> None:
+        special_map = route.get("directions", {}).get(direction, {}).get("special_audio_map", {}) or {}
+        add("###上行站点" if direction == "up" else "###下行站点")
+        for index, station in enumerate(stations, 1):
+            special = special_map.get(station, "")
+            is_terminal = index == len(stations)
+            forecast_parts = terminal_depart_parts if is_terminal else depart_parts
+            arrival_parts = terminal_arrive_parts if is_terminal else arrive_parts
+            forecast = render_rule(forecast_parts, special) if special and "【特殊语句】" in forecast_parts else "{默认模版}"
+            arrival = render_rule(arrival_parts, special) if special and "【特殊语句】" in arrival_parts else "{默认模版}"
+            add(f"####Stop{index}：")
+            add(f"预报规则={forecast}")
+            add(f"到站规则={arrival}")
+            add("本站中文语音文件=" + mapped_audio(station_audio_map.get(station, ""), "{本站中文同名文件}"))
+            add("本站英文语音文件=" + mapped_audio(station_audio_map_en.get(station, ""), "{本站英文同名文件}"))
+            add("")
+
+    add_station_rules("up", up_stations)
+    add_station_rules("down", down_stations)
+    add("##手按提示语类")
+    tips = list(route.get("tips", []) or [])
+    for index in range(10):
+        raw = tips[index] if index < len(tips) else ""
+        add(f"###提示语{index + 1}:")
+        add(f"显示名称=提示语{index + 1}")
+        add("语音文件=" + ">".join(audio_tokens(raw)))
+        add("")
+
+    return {
+        "line_name": line_name,
+        "line_file_name": line_file_name,
+        "ini_text": "\n".join(lines).rstrip() + "\n",
+        "media": [(audio_names[p.resolve()], p) for p in audio_files],
+        "warnings": warnings,
+        "source_company": str(route.get("company") or "").strip(),
+    }
 
 
 def build_route_entries(src: Path, dst: Path) -> list[dict]:
@@ -509,21 +768,7 @@ def main() -> None:
 
     (output / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    missing_welcome: List[str] = []
-    for route_entry in route_entries:
-        p = route_entry["target"] / "converted.route.json"
-        data = json.loads(p.read_text(encoding="utf-8"))
-        fd0 = data.get("first_departure_forecast") or {}
-        if not (fd0.get("shared") or fd0.get("up") or fd0.get("down")):
-            missing_welcome.append(data.get("id", route_entry["target"].name))
-    report_path = output / "routes_missing_welcome.txt"
-    report_path.write_text(
-        "以下线路在合并「文件名推断 + 提示语3/4」后仍无任何首站欢迎语条目（可手工补 first_departure_forecast）：\n"
-        + ("\n".join(missing_welcome) if missing_welcome else "（无，已全部匹配或留空）\n"),
-        encoding="utf-8",
-    )
     print(f"Converted {len(index)} routes into: {output}")
-    print(f"欢迎语未匹配列表: {report_path} （共 {len(missing_welcome)} 条）")
 
 
 if __name__ == "__main__":

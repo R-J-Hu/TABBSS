@@ -2809,13 +2809,14 @@
     fi.click();
   };
 
-  function showImportPreviewDialog(preview, defaultCompany, allowPickCompany, origFileName) {
+  function showImportPreviewDialog(preview, defaultCompany, allowPickCompany, origFileName, mountTarget) {
     var sessionId = preview.sessionId;
     var lines = preview.lines || [];
     var conflicts = preview.conflicts || [];
     var mediaCount = preview.mediaCount || 0;
     var hasConflicts = conflicts.length > 0;
     var isCompanyImport = preview.iniCount > 1;
+    var warnings = Array.isArray(preview.warnings) ? preview.warnings : [];
 
     var linesHtml = "";
     lines.forEach(function (l) {
@@ -2837,6 +2838,13 @@
 
     var msg = '将导入 <strong>' + lines.length + '</strong> 个线路、<strong>' + mediaCount + '</strong> 个音频文件。';
     if (hasConflicts) msg += '<br><span style="color:#eab308">⚠ ' + conflicts.length + ' 个线路与本地冲突。</span>';
+    if (warnings.length) {
+      msg += '<div style="margin-top:8px;padding:8px 10px;border:1px solid #f4d38b;border-radius:7px;background:#fff9e8;color:#8a5a00;font-size:12px">'
+        + '<strong>转换提示：</strong><br>'
+        + warnings.slice(0, 6).map(function (item) { return LE.escHtml(item); }).join('<br>')
+        + (warnings.length > 6 ? '<br>另有 ' + (warnings.length - 6) + ' 项' : '')
+        + '</div>';
+    }
 
     var overlay = document.createElement("div");
     overlay.className = "ed-modal-overlay";
@@ -2854,7 +2862,7 @@
       '<button class="ed-btn ed-btn-ghost" id="edImpCancel">取消</button>' +
       '<button class="ed-btn ed-btn-primary" id="edImpConfirm">确认导入</button></div></div>';
 
-    $("lineEditorSidebar").appendChild(overlay);
+    (mountTarget || $("lineEditorSidebar")).appendChild(overlay);
 
     overlay.querySelector(".ed-modal-close").onclick = function () { overlay.remove(); };
     overlay.querySelector("#edImpCancel").onclick = function () { overlay.remove(); };

@@ -405,6 +405,7 @@ def main():
         funct["show_update_log"] = False
         funct["show_build_number"] = False
         funct["check_updates"] = True
+        funct["allow_compat_import_archive"] = False
     elif edition == "dev":
         funct["show_dev_panel"] = True
         funct["show_dev_track_module"] = True
@@ -417,6 +418,7 @@ def main():
         funct["show_update_log"] = True
         funct["show_build_number"] = True
         funct["check_updates"] = False
+        funct["allow_compat_import_archive"] = False
     (build_dir / "web" / "funct.json").parent.mkdir(parents=True, exist_ok=True)
     (build_dir / "web" / "funct.json").write_text(json.dumps(funct, ensure_ascii=False, indent=2), encoding="utf-8")
     (build_dir / "VERSION").write_text(ver, encoding="utf-8")

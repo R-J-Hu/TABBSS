@@ -1,6 +1,6 @@
-window.TABBSS_JS_VER = "262"; // cache-debug marker for dev panel
+window.TABBSS_JS_VER = "267"; // cache-debug marker for dev panel
 window.TABBSS_VERSION = "1.6.1";  // from VERSION
-window.TABBSS_BUILD = "262";    // must match index.html build badge
+window.TABBSS_BUILD = "267";    // must match index.html build badge
 
 // ── Global error surface (Release builds have no console) ──
 window.addEventListener("error", function (ev) {
@@ -18,6 +18,7 @@ window.addEventListener("unhandledrejection", function (ev) {
 
 const routeSelect = document.getElementById("routeSelect");
 const modeSelect = document.getElementById("modeSelect");
+const compatImportArchiveBtn = document.getElementById("compatImportArchiveBtn");
 const companyRouteSelect = document.getElementById("companyRouteSelect");
 const companyRouteWrap = document.getElementById("companyRouteWrap");
 const lineFileEditor = document.getElementById("lineFileEditor");
@@ -76,8 +77,14 @@ const state = {
   userDataBase: "../报站线路文件库",
   devMode: /(?:\?|&)dev=1(?:&|$)/.test(location.search) || /localhost|127\.0\.0\.1/.test(location.hostname),
   localDirHandle: null,
-  funct: { edition: "dev", show_legacy_editor: false, show_dev_track_module: false, show_update_log: true, show_build_number: true, check_updates: true },
+  funct: { edition: "dev", show_legacy_editor: false, show_dev_track_module: false, show_update_log: true, show_build_number: true, check_updates: true, allow_compat_import_archive: false },
 };
+
+let compatRouteLoadSequence = 0;
+
+function cancelCompatRouteLoad() {
+  compatRouteLoadSequence += 1;
+}
 
 async function loadFunctConfig() {
   try {
@@ -90,6 +97,7 @@ async function loadFunctConfig() {
       if (typeof cfg.show_build_number === "boolean") state.funct.show_build_number = cfg.show_build_number;
       if (typeof cfg.check_updates === "boolean") state.funct.check_updates = cfg.check_updates;
       if (typeof cfg.show_dev_panel === "boolean") state.funct.show_dev_panel = cfg.show_dev_panel;
+      if (typeof cfg.allow_compat_import_archive === "boolean") state.funct.allow_compat_import_archive = cfg.allow_compat_import_archive;
       if (typeof cfg.edition === "string") state.funct.edition = cfg.edition;
       console.log("[funct] config loaded:", state.funct);
     }
@@ -110,6 +118,17 @@ function applyFunctConfig() {
   if (buildBadge) buildBadge.style.display = state.funct.show_build_number ? "" : "none";
   var devToggle = document.getElementById("devPanelToggle");
   if (devToggle) devToggle.style.display = state.funct.show_dev_panel ? "" : "none";
+  updateCompatArchiveImportButton();
+}
+
+function updateCompatArchiveImportButton() {
+  if (!compatImportArchiveBtn) return;
+  var visible = state.funct.edition === "dev"
+    && state.funct.allow_compat_import_archive === true
+    && state.mode === "compat"
+    && !!state.route;
+  compatImportArchiveBtn.hidden = !visible;
+  compatImportArchiveBtn.disabled = !visible;
 }
 
 /* ── Edition Config ── */
@@ -194,12 +213,15 @@ function initDevPanel() {
         state.funct[cb.dataset.key] = !!cb.checked;
       });
       applyFunctConfig();
-      fetch("/api/file/write", {
+      fetch("/api/dev/funct", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ relPath: "web/funct.json", content: JSON.stringify(state.funct, null, 2) + "\n" }),
+        body: JSON.stringify({ values: state.funct }),
       }).then(function (resp) { return resp.json(); })
-        .then(function () { close(); })
+        .then(function (result) {
+          if (!result.ok) throw new Error(result.error || "保存失败");
+          close();
+        })
         .catch(function (e) { console.error("[dev-panel] save failed:", e); });
     });
   }
@@ -214,6 +236,7 @@ function renderDevToggles() {
     { key: "show_update_log", label: "更新日志" },
     { key: "show_build_number", label: "Build 标号" },
     { key: "check_updates", label: "检查更新" },
+    { key: "allow_compat_import_archive", label: "允许海峡报站器导入档案库模式" },
   ];
   var html = "";
   items.forEach(function (item) {
@@ -698,6 +721,7 @@ async function loadLineTextByPath(relPath) {
 }
 
 async function loadRouteFromNewMode(relPath) {
+  cancelCompatRouteLoad();
   clearPlaybackState();
   try {
     var txt = await loadLineTextByPath(relPath);
@@ -711,6 +735,7 @@ async function loadRouteFromNewMode(relPath) {
     renderTipButtons([]);
     state.route = null;
     state.currentLineFile = null;
+    updateCompatArchiveImportButton();
     setDebug({ error: "文件不存在", lineFile: relPath });
     return;
   }
@@ -723,8 +748,8 @@ async function loadRouteFromNewMode(relPath) {
   };
   state.route = buildRouteFromV15Text(txt, fileMeta);
   state.audioBases = ["../报站线路文件库"];
-  applyLoopModeUI();
-  resetTrip();
+  resetTripAfterRouteChange();
+  updateCompatArchiveImportButton();
   setDebug({ mode: state.mode, company, lineFile: relPath, routeName: state.route.name });
 }
 
@@ -837,6 +862,40 @@ async function restoreLatestDeletedFile() {
 }
 
 async function loadIndexCompat() {
+  // Installed/local builds scan the original Haixia folders at runtime. This
+  // makes a newly copied valid program visible immediately without generating
+  // output/index.json. The old output path remains only as a static-build
+  // fallback for compatibility.
+  try {
+    const directResp = await fetch("/api/compat/index?ts=" + Date.now(), { cache: "no-store" });
+    if (directResp.ok) {
+      const direct = await directResp.json();
+      if (direct && direct.ok && Array.isArray(direct.routes)) {
+        state.index = direct.routes;
+        routeSelect.innerHTML = "";
+        for (const item of state.index) {
+          const op = document.createElement("option");
+          op.value = item.id;
+          op.textContent = item.name;
+          routeSelect.appendChild(op);
+        }
+        if (state.index.length > 0) {
+          await loadRouteById(state.index[0].id);
+        } else {
+          clearPlaybackState();
+          state.route = null;
+          refreshTripUi({ scrollMode: "center" });
+          throw new Error("海峡兼容模式文件库中没有可读取的程序，请确认线路文件夹内含有“线路信息.ini”。");
+        }
+        return;
+      }
+    }
+  } catch (error) {
+    // A valid direct response (including an empty library) is authoritative.
+    // Only network/API absence should fall through to legacy static output.
+    if (error && /海峡兼容模式文件库/.test(error.message || "")) throw error;
+  }
+
   const tryUrls = [
     `${state.outputBase}/index.json`,
     "./output/index.json",
@@ -861,7 +920,7 @@ async function loadIndexCompat() {
     }
   }
 
-  if (!resp) throw new Error("无法加载 output/index.json，请先运行转换脚本。");
+  if (!resp) throw new Error("无法读取海峡兼容模式文件库，请确认线路文件夹内含有“线路信息.ini”。");
 
   state.outputBase = usedBase;
   state.index = resp;
@@ -882,18 +941,39 @@ async function loadRouteById(routeId) {
   clearPlaybackState();
   const meta = state.index.find((x) => x.id === routeId);
   if (!meta) return;
-  const resp = await fetch(`${state.outputBase}/${meta.path}`);
-  if (!resp.ok) throw new Error("无法加载线路 json。");
-  state.route = await resp.json();
+  const loadSequence = ++compatRouteLoadSequence;
+  const url = meta.source === "direct"
+    ? `/api/compat/route?id=${encodeURIComponent(meta.id)}&ts=${Date.now()}`
+    : `${state.outputBase}/${meta.path}`;
+  const resp = await fetch(url, { cache: "no-store" });
+  if (loadSequence !== compatRouteLoadSequence) return;
+  if (!resp.ok) {
+    let detail = "";
+    try { detail = (await resp.json()).error || ""; } catch { /* ignore */ }
+    throw new Error(detail || "无法读取海峡线路程序。");
+  }
+  const route = await resp.json();
+  if (loadSequence !== compatRouteLoadSequence) return;
+  state.route = route;
   state.audioBases = ["../兼容模式-海峡报站器文件库"];
   lastMainPlayback = null;
-  resetTrip();
+  resetTripAfterRouteChange();
+  updateCompatArchiveImportButton();
   setDebug({ mode: state.mode, routeId: state.route.id, routeName: state.route.name });
+}
+
+function resetTripAfterRouteChange() {
+  // Every newly selected route starts from the departure-ready state:
+  // up direction, first station, currently arrived at the origin.
+  state.direction = "up";
+  applyLoopModeUI();
+  resetTrip();
 }
 
 function resetTrip() {
   state.stopNumber = 1;
   state.awaitingArrival = false;
+  updateCompatArchiveImportButton();
   renderTipButtons();
   refreshTripUi({ scrollMode: "center" });
 }
@@ -1189,15 +1269,6 @@ function toAudioEntries(parts, ctx, dirOverride) {
   return entries;
 }
 
-function getFirstDepartureWelcomeParts(forDirection) {
-  const fd = state.route?.first_departure_forecast;
-  if (!fd) return [];
-  const shared = Array.isArray(fd.shared) ? fd.shared : [];
-  const dirKey = (forDirection === undefined ? state.direction : forDirection) === "up" ? "up" : "down";
-  const dirL = Array.isArray(fd[dirKey]) ? fd[dirKey] : [];
-  return [...shared, ...dirL];
-}
-
 function updateExternalDisplay() {
   if (!lineExternalDisplay) return;
   const stations = getStations();
@@ -1310,10 +1381,9 @@ function buildForecastQueueWithState(wasFirstStop) {
     ben_zhan_index: isTerminal ? sn : Math.max(1, sn - 1),
     xia_zhan_index: sn,
   };
-  let prefix = [];
-  if (wasFirstStop) {
-    prefix = getFirstDepartureWelcomeParts(state.direction).flatMap((p) => expandFileTokens(p));
-  }
+  // Haixia compatibility playback follows the INI template exactly.  Do not
+  // prepend legacy filename-inferred welcome audio at the first stop.
+  const prefix = [];
   const defaultTplInfo = forecastTemplateInfo(sn, stations, state.direction);
   const overrideTokens = stationOverrideFor(state.direction, sn, "depart");
   const tplInfo = overrideTokens && overrideTokens.includes("【默认模版】")
@@ -1357,10 +1427,7 @@ function buildForecastQueueReplay(snap) {
     ben_zhan_index: isTerminal2 ? sn : Math.max(1, sn - 1),
     xia_zhan_index: sn,
   };
-  let prefix = [];
-  if (snap.wasFirstStop) {
-    prefix = getFirstDepartureWelcomeParts(snap.direction).flatMap((p) => expandFileTokens(p));
-  }
+  const prefix = [];
   const defaultTplInfo = forecastTemplateInfo(sn, stations, snap.direction);
   const overrideTokens = stationOverrideFor(snap.direction, sn, "depart");
   const tplInfo = overrideTokens && overrideTokens.includes("【默认模版】")
@@ -2036,6 +2103,7 @@ function setEditorDockEnabled(enabled) {
 }
 
 async function switchMode(mode) {
+  cancelCompatRouteLoad();
   clearPlaybackState();
   state.mode = mode;
   state.route = null;
@@ -2062,6 +2130,7 @@ async function switchMode(mode) {
     await loadIndexCompat();
   }
 
+  updateCompatArchiveImportButton();
   runAutoChecks();
 }
 
@@ -2080,6 +2149,46 @@ modeSelect.addEventListener("change", async (e) => {
     alert(err.message);
   }
 });
+
+if (compatImportArchiveBtn) {
+  compatImportArchiveBtn.addEventListener("click", async function () {
+    if (state.funct.edition !== "dev" || !state.funct.allow_compat_import_archive || state.mode !== "compat" || !state.route) {
+      return;
+    }
+    var originalHtml = compatImportArchiveBtn.innerHTML;
+    compatImportArchiveBtn.disabled = true;
+    compatImportArchiveBtn.innerHTML = '<span>正在生成导入预览...</span>';
+    try {
+      var response = await fetch("/api/file/import_compat_preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ routeId: routeSelect.value }),
+      });
+      var preview = await response.json();
+      if (!response.ok || !preview.ok) throw new Error(preview.error || "无法生成导入预览");
+      await loadNewIndex();
+      var companies = (state.newIndex && state.newIndex.companies || []).map(function (company) { return company.name; });
+      var preferred = preview.suggestedCompany && companies.includes(preview.suggestedCompany)
+        ? preview.suggestedCompany
+        : (companies.includes(state.currentCompany) ? state.currentCompany : "");
+      if (!window.LineEditor || typeof window.LineEditor._showImportPreviewDialog !== "function") {
+        throw new Error("TABL 导入界面尚未加载");
+      }
+      window.LineEditor._showImportPreviewDialog(
+        preview,
+        preferred,
+        true,
+        (state.route.name || "海峡线路") + ".tabl",
+        document.body
+      );
+    } catch (error) {
+      showToast("导入准备失败：" + error.message, "error");
+    } finally {
+      compatImportArchiveBtn.innerHTML = originalHtml;
+      updateCompatArchiveImportButton();
+    }
+  });
+}
 
 companyRouteSelect.addEventListener("change", async (e) => {
   state.currentCompany = e.target.value;

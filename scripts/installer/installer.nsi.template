@@ -45,9 +45,8 @@ RequestExecutionLevel admin
 Var UpgradeMode
 
 ; ── .onInit: detect upgrade vs fresh install ──────────────
-; UpgradeMode only records whether an older install exists. Both upgrade and
-; fresh install now install data to top-level data dirs (SetOverwrite off
-; preserves existing user lines), so no .update_package staging is needed.
+; UpgradeMode only records whether an older install exists. Mutable data is
+; always unpacked to a private payload and merged transactionally below.
 ; The "close the running app?" prompt is shown in myGuiInit AFTER the main
 ; window exists, otherwise the prompt steals foreground and the wizard window
 ; ends up invisible (taskbar icon only).
@@ -104,32 +103,50 @@ Section "!档案库报站模拟器 (必需)" SecMain
   ; Main executable (always installed)
   File "{{BUILD_DIR}}\{{APP_EXE}}"
 
-  ; Data directories — always installed to top-level. SetOverwrite off keeps
-  ; existing user line data on upgrade (union by file: new files land, existing
-  ; files are never clobbered), so no .update_package staging is needed.
-  SetOverwrite off
-  SetOutPath "$INSTDIR\报站线路文件库"
+  ; Never write release data directly over the user's library. The application
+  ; merges this private payload by union, repairs index.json, verifies every
+  ; file, and only then removes the payload.
+  SetOutPath "$INSTDIR\.install_payload\报站线路文件库"
   File /nonfatal /r "{{BUILD_DIR}}\报站线路文件库\*"
 
-  SetOutPath "$INSTDIR\兼容模式-海峡报站器文件库"
+  SetOutPath "$INSTDIR\.install_payload\兼容模式-海峡报站器文件库"
   File /nonfatal /r "{{BUILD_DIR}}\兼容模式-海峡报站器文件库\*"
 
-  SetOutPath "$INSTDIR\output"
-  File /nonfatal /r "{{BUILD_DIR}}\output\*"
-  SetOverwrite on
+  ; Fresh installs do not create output at all. On upgrade only, keep shipping
+  ; the legacy cache and union it into an existing output directory so old
+  ; installations remain rollback-compatible.
+  ${If} $UpgradeMode == "1"
+    SetOutPath "$INSTDIR\.install_payload\output"
+    File /nonfatal /r "{{BUILD_DIR}}\output\*"
+  ${EndIf}
+
+  ; Create mutable targets before granting permissions. On a fresh install
+  ; these directories do not exist yet, so running icacls first would silently
+  ; leave them administrator-only after the merge.
+  CreateDirectory "$INSTDIR\报站线路文件库"
+  CreateDirectory "$INSTDIR\兼容模式-海峡报站器文件库"
 
   ; Grant write permission on data dirs (Program Files is read-only)
   nsExec::ExecToStack 'icacls "$INSTDIR\报站线路文件库" /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q'
   Pop $0
   nsExec::ExecToStack 'icacls "$INSTDIR\兼容模式-海峡报站器文件库" /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q'
   Pop $0
-  nsExec::ExecToStack 'icacls "$INSTDIR\output" /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q'
+  ${If} $UpgradeMode == "1"
+    CreateDirectory "$INSTDIR\output"
+    nsExec::ExecToStack 'icacls "$INSTDIR\output" /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q'
+    Pop $0
+  ${EndIf}
+  nsExec::ExecToStack 'icacls "$INSTDIR\.install_payload" /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q'
   Pop $0
-  ; Defensive cleanup: remove any .update_package residue from older installers
-  ; that staged data there. Its contents (new line data) are already merged
-  ; into 报站线路文件库 above; if the app ran after a staged upgrade its merge
-  ; already consumed them, so deleting the now-empty dir is safe.
-  RMDir /r "$INSTDIR\.update_package"
+
+  ; This also rescues legacy .update_package data. On failure the payload is
+  ; deliberately retained and the application retries at its next launch.
+  nsExec::ExecToStack '"$INSTDIR\${APP_EXE}" --merge-update-only'
+  Pop $0
+  ${If} $0 != "0"
+    MessageBox MB_OK|MB_ICONEXCLAMATION \
+      "线路数据迁移未完成。安装程序没有删除任何现有线路，暂存数据也已保留；启动程序时将自动重试。"
+  ${EndIf}
 
   ; Write uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -209,7 +226,6 @@ Section "un.程序文件" UnSecProgram
   Delete "$INSTDIR\icon\tabl_icon.ico"
   RMDir "$INSTDIR\icon"
   RMDir /r "$INSTDIR\_ffmpeg"
-  RMDir /r "$INSTDIR\.update_package"
   RMDir /r "$SMPROGRAMS\{{START_MENU_GROUP}}"
   Delete "$DESKTOP\{{APP_NAME}}.lnk"
   DeleteRegKey HKLM "${UNINSTALL_KEY}"
@@ -225,6 +241,8 @@ Section /o "un.用户数据 (报站线路文件库和兼容模式)" UnSecData
   RMDir /r "$INSTDIR\报站线路文件库"
   RMDir /r "$INSTDIR\兼容模式-海峡报站器文件库"
   RMDir /r "$INSTDIR\output"
+  RMDir /r "$INSTDIR\.update_package"
+  RMDir /r "$INSTDIR\.install_payload"
   RMDir "$INSTDIR"
 SectionEnd
 

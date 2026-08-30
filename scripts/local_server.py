@@ -2,13 +2,15 @@
 import argparse
 import io
 import json
+import os
 import posixpath
 import struct
+import threading
 import zipfile
 from datetime import datetime
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from pathlib import Path
-from urllib.parse import unquote
+from pathlib import Path, PurePosixPath
+from urllib.parse import parse_qs, unquote, urlsplit
 
 
 class LocalHandler(SimpleHTTPRequestHandler):
@@ -16,6 +18,11 @@ class LocalHandler(SimpleHTTPRequestHandler):
     data_root: Path = Path.cwd() / "userdata" / "local"
     _legacy_audio_cache: dict[str, tuple[int, int, bytes]] = {}
     _LEGACY_AUDIO_CACHE_LIMIT = 64
+    _compat_converter_cache = None
+    _compat_route_cache: dict[str, tuple[tuple, dict]] = {}
+    _compat_route_locks: dict[str, threading.Lock] = {}
+    _compat_route_cache_guard = threading.Lock()
+    _COMPAT_ROUTE_CACHE_LIMIT = 128
 
     # IMA ADPCM tables from the public WAV specification.  A number of legacy
     # announcement libraries use this codec while keeping a misleading .mp3
@@ -208,8 +215,18 @@ class LocalHandler(SimpleHTTPRequestHandler):
         return str(full)
 
     def do_GET(self):
+        request_path = urlsplit(self.path).path
+        # Haixia compatibility mode reads the original route folders directly.
+        # output/index.json remains a frontend fallback for old/static builds,
+        # but is no longer a runtime prerequisite.
+        if request_path == "/api/compat/index":
+            self._api_compat_index()
+            return
+        if request_path == "/api/compat/route":
+            self._api_compat_route()
+            return
         # API: check for updates (allow ?force=1 query)
-        if self.path.split("?", 1)[0] == "/api/check_update":
+        if request_path == "/api/check_update":
             self._api_check_update()
             return
         # API: download progress for the update installer
@@ -236,6 +253,131 @@ class LocalHandler(SimpleHTTPRequestHandler):
                 return
         super().do_GET()
 
+    def _compat_root(self) -> Path:
+        return (self.data_root.parent / "兼容模式-海峡报站器文件库").resolve()
+
+    def _compat_converter(self):
+        converter_path = (self.root_dir / "scripts" / "convert_ini.py").resolve()
+        cached = type(self)._compat_converter_cache
+        if cached and cached[0] == converter_path:
+            return cached[1]
+        if not converter_path.is_file():
+            raise FileNotFoundError(f"海峡兼容解析器不存在：{converter_path}")
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("tabbss_compat_convert_ini", converter_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("无法加载海峡兼容解析器")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        type(self)._compat_converter_cache = (converter_path, module)
+        return module
+
+    def _api_compat_index(self):
+        """Scan original Haixia folders on every request; no conversion step."""
+        compat_root = self._compat_root()
+        if not compat_root.is_dir():
+            self._send_json(200, {"ok": True, "source": "direct", "routes": [], "invalid": []})
+            return
+        try:
+            converter = self._compat_converter()
+            routes = []
+            invalid = []
+            for ini_path in sorted(compat_root.rglob("线路信息.ini"), key=lambda p: str(p).casefold()):
+                route_dir = ini_path.parent
+                rel_id = route_dir.relative_to(compat_root).as_posix()
+                try:
+                    cfg = converter.read_ini(ini_path)
+                    line = cfg.get("线路", {})
+                    routes.append({
+                        "id": rel_id,
+                        "name": (line.get("线路名") or route_dir.name).strip(),
+                        "source": "direct",
+                    })
+                except Exception as exc:
+                    invalid.append({"id": rel_id, "error": str(exc)})
+            self._send_json(200, {
+                "ok": True,
+                "source": "direct",
+                "routes": routes,
+                "invalid": invalid,
+            })
+        except Exception as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+
+    def _resolve_compat_route(self, raw_id: str) -> tuple[Path, str]:
+        normalized = (raw_id or "").replace("\\", "/").strip("/")
+        rel = PurePosixPath(normalized)
+        if not normalized or rel.is_absolute() or any(part in ("", ".", "..") for part in rel.parts):
+            raise ValueError("无效的海峡线路路径")
+        compat_root = self._compat_root()
+        route_dir = (compat_root / Path(*rel.parts)).resolve()
+        try:
+            route_dir.relative_to(compat_root)
+        except ValueError as exc:
+            raise ValueError("海峡线路路径超出文件库") from exc
+        return route_dir, rel.as_posix()
+
+    @staticmethod
+    def _compat_route_signature(route_dir: Path) -> tuple:
+        """Cheaply detect INI edits and audio filename changes without reading audio."""
+        ini_stat = (route_dir / "线路信息.ini").stat()
+        directories = []
+        for current, dirnames, filenames in os.walk(route_dir):
+            current_path = Path(current)
+            rel = current_path.relative_to(route_dir).as_posix()
+            try:
+                dir_mtime = current_path.stat().st_mtime_ns
+            except OSError:
+                dir_mtime = 0
+            directories.append((
+                rel,
+                dir_mtime,
+                tuple(sorted(dirnames, key=str.casefold)),
+                tuple(sorted(filenames, key=str.casefold)),
+            ))
+        return (ini_stat.st_mtime_ns, ini_stat.st_size, tuple(directories))
+
+    @classmethod
+    def _compat_route_lock(cls, cache_key: str) -> threading.Lock:
+        with cls._compat_route_cache_guard:
+            return cls._compat_route_locks.setdefault(cache_key, threading.Lock())
+
+    def _load_compat_route_cached(self, route_dir: Path, rel_id: str) -> dict:
+        cache_key = str(route_dir)
+        lock = type(self)._compat_route_lock(cache_key)
+        with lock:
+            signature = self._compat_route_signature(route_dir)
+            cached = type(self)._compat_route_cache.get(cache_key)
+            if cached and cached[0] == signature:
+                return cached[1]
+
+            route = self._compat_converter().normalize_route(route_dir, None)
+            route["id"] = rel_id
+            with type(self)._compat_route_cache_guard:
+                cache = type(self)._compat_route_cache
+                cache[cache_key] = (signature, route)
+                while len(cache) > type(self)._COMPAT_ROUTE_CACHE_LIMIT:
+                    cache.pop(next(iter(cache)))
+            return route
+
+    def _api_compat_route(self):
+        """Convert one original route in memory and return it immediately."""
+        try:
+            query = parse_qs(urlsplit(self.path).query)
+            route_dir, rel_id = self._resolve_compat_route(query.get("id", [""])[0])
+            if not (route_dir / "线路信息.ini").is_file():
+                self._send_json(404, {"ok": False, "error": "线路信息.ini 不存在"})
+                return
+            # Per-route locking prevents repeated rapid selections from parsing
+            # the same OneDrive-backed folder concurrently.  The cache is
+            # invalidated by an INI edit or any directory filename change.
+            route = self._load_compat_route_cached(route_dir, rel_id)
+            self._send_json(200, route)
+        except ValueError as exc:
+            self._send_json(400, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self._send_json(422, {"ok": False, "error": f"海峡线路解析失败：{exc}"})
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
         self.send_header("Pragma", "no-cache")
@@ -247,7 +389,10 @@ class LocalHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/update":
             self._api_update()
             return
-        if not self.path.startswith("/api/file/") and self.path != "/api/open_folder":
+        if (
+            not self.path.startswith("/api/file/")
+            and self.path not in ("/api/open_folder", "/api/dev/funct")
+        ):
             self.send_error(404, "Not Found")
             return
 
@@ -321,6 +466,10 @@ class LocalHandler(SimpleHTTPRequestHandler):
                 self._api_download(data)
             elif api == "/api/file/update_index":
                 self._api_update_index(data)
+            elif api == "/api/dev/funct":
+                self._api_update_dev_funct(data)
+            elif api == "/api/file/import_compat_preview":
+                self._api_import_compat_preview(data)
             else:
                 self._send_json(404, {"ok": False, "error": "unknown api"})
         except Exception as e:
@@ -344,6 +493,85 @@ class LocalHandler(SimpleHTTPRequestHandler):
             raise ValueError('文件名包含非法字符：\\ / : * ? " < > |')
         if ".." in name:
             raise ValueError("文件名不能包含 ..")
+
+    def _compat_archive_import_enabled(self) -> bool:
+        """Developer-only gate; Release/Audit must never expose this writer."""
+        try:
+            cfg = json.loads((self.root_dir / "web" / "funct.json").read_text(encoding="utf-8-sig"))
+        except Exception:
+            return False
+        return cfg.get("edition") == "dev" and cfg.get("allow_compat_import_archive") is True
+
+    def _api_update_dev_funct(self, data):
+        """Persist developer switches without exposing a general project-file writer."""
+        config_path = self.root_dir / "web" / "funct.json"
+        try:
+            cfg = json.loads(config_path.read_text(encoding="utf-8-sig"))
+        except Exception:
+            self._send_json(500, {"ok": False, "error": "开发者功能配置无法读取"})
+            return
+        if cfg.get("edition") != "dev":
+            self._send_json(403, {"ok": False, "error": "仅开发版允许修改开发者功能"})
+            return
+        values = data.get("values")
+        if not isinstance(values, dict):
+            self._send_json(400, {"ok": False, "error": "开发者功能配置格式不正确"})
+            return
+        allowed = {
+            "show_legacy_editor",
+            "show_dev_track_module",
+            "show_update_log",
+            "show_build_number",
+            "check_updates",
+            "allow_compat_import_archive",
+        }
+        for key in allowed:
+            if key in values:
+                if not isinstance(values[key], bool):
+                    self._send_json(400, {"ok": False, "error": f"{key} 必须为布尔值"})
+                    return
+                cfg[key] = values[key]
+        tmp_path = config_path.with_suffix(".json.tmp")
+        try:
+            tmp_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            tmp_path.replace(config_path)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        self._send_json(200, {"ok": True, "values": {key: cfg.get(key) for key in allowed}})
+
+    def _api_import_compat_preview(self, data):
+        """Prepare a Haixia-to-archive import session without writing user data."""
+        if not self._compat_archive_import_enabled():
+            self._send_json(403, {"ok": False, "error": "该开发者功能未开启"})
+            return
+        route_dir, rel_id = self._resolve_compat_route(str(data.get("routeId", "")))
+        ini_path = route_dir / "线路信息.ini"
+        if not ini_path.is_file():
+            self._send_json(404, {"ok": False, "error": "海峡线路不存在或缺少线路信息.ini"})
+            return
+        package = self._compat_converter().build_archive_import(route_dir, rel_id)
+        import uuid
+        session_id = str(uuid.uuid4())[:8]
+        self._import_sessions[session_id] = {
+            "kind": "compat_archive",
+            "package": package,
+            "route_id": rel_id,
+        }
+        self._send_json(200, {
+            "ok": True,
+            "preview": True,
+            "sessionId": session_id,
+            "lines": [{"name": package["line_name"], "exists": False, "sameVersion": False}],
+            "conflicts": [],
+            "newLines": [{"name": package["line_name"], "exists": False, "sameVersion": False}],
+            "mediaCount": len(package["media"]),
+            "iniCount": 1,
+            "zipCompany": package.get("source_company") or "海峡兼容导入",
+            "suggestedCompany": package.get("source_company") or "",
+            "warnings": package.get("warnings", []),
+            "compatArchiveImport": True,
+        })
 
     def _trash_root(self) -> Path:
         return self.data_root / ".trash"
@@ -1049,6 +1277,11 @@ class LocalHandler(SimpleHTTPRequestHandler):
             if not session:
                 self._send_json(400, {"ok": False, "error": "会话已过期，请重新导入"})
                 return
+            if session.get("kind") == "compat_archive":
+                if not target_company or target_company == "__new__":
+                    self._send_json(400, {"ok": False, "error": "未指定目标公司"})
+                    return
+                return self._do_import_compat_archive(session, target_company)
             zip_data = session["zip_data"]
             zip_company = session["zip_company"]
             if target_company == "__new__":
@@ -1191,6 +1424,98 @@ class LocalHandler(SimpleHTTPRequestHandler):
                 })
         except zipfile.BadZipFile:
             self._send_json(400, {"ok": False, "error": "无效的 zip 文件"})
+
+    def _do_import_compat_archive(self, session, target_company: str):
+        """Commit a prepared developer conversion without overwriting existing data."""
+        if not self._compat_archive_import_enabled():
+            self._send_json(403, {"ok": False, "error": "该开发者功能未开启"})
+            return
+        target_company = str(target_company or "").strip()
+        self._validate_leaf_name(target_company)
+        package = session.get("package") or {}
+        line_name = str(package.get("line_name") or "").strip()
+        line_file_name = str(package.get("line_file_name") or "").strip()
+        ini_text = str(package.get("ini_text") or "")
+        media = list(package.get("media") or [])
+        self._validate_leaf_name(line_file_name)
+        if not line_name or not ini_text:
+            self._send_json(400, {"ok": False, "error": "转换会话缺少线路内容"})
+            return
+
+        company_dir = self._safe_rel(target_company)
+        line_rel = f"{target_company}/{line_file_name}"
+        line_path = self._safe_rel(line_rel)
+        if line_path.exists():
+            self._send_json(409, {"ok": False, "error": f"目标线路已存在：{line_rel}"})
+            return
+
+        index_obj = self._read_line_index()
+        companies = index_obj.get("companies", [])
+        index_company = next((c for c in companies if c.get("name") == target_company), None)
+        if index_company and any(str(item.get("file", "")) == line_rel for item in index_company.get("lines", [])):
+            self._send_json(409, {"ok": False, "error": f"目标线路已注册：{line_rel}"})
+            return
+
+        prepared_media = []
+        for packed_name, source_path in media:
+            packed_name = str(packed_name)
+            self._validate_leaf_name(packed_name)
+            source_path = Path(source_path)
+            if not source_path.is_file():
+                self._send_json(409, {"ok": False, "error": f"源音频已不存在：{source_path.name}"})
+                return
+            dest = self._safe_rel(f"{target_company}/{packed_name}")
+            content = source_path.read_bytes()
+            if dest.exists() and dest.read_bytes() != content:
+                self._send_json(409, {"ok": False, "error": f"目标公司已有不同内容的同名音频：{packed_name}"})
+                return
+            prepared_media.append((dest, content, dest.exists()))
+
+        company_existed = company_dir.exists()
+        created_paths: list[Path] = []
+        reused_media = 0
+        try:
+            company_dir.mkdir(parents=True, exist_ok=True)
+            for dest, content, existed in prepared_media:
+                if existed:
+                    reused_media += 1
+                    continue
+                dest.write_bytes(content)
+                created_paths.append(dest)
+            with line_path.open("x", encoding="utf-8", newline="\n") as handle:
+                handle.write(ini_text)
+            created_paths.append(line_path)
+
+            if index_company is None:
+                index_company = {"name": target_company, "lines": []}
+                companies.append(index_company)
+            index_company.setdefault("lines", []).append({"name": line_name, "file": line_rel})
+            index_company["lines"].sort(key=lambda item: str(item.get("name", "")).casefold())
+            index_obj["companies"] = sorted(companies, key=lambda item: str(item.get("name", "")).casefold())
+            self._write_line_index_atomic(index_obj)
+        except Exception as exc:
+            for path in reversed(created_paths):
+                try:
+                    if path.is_file():
+                        path.unlink()
+                except OSError:
+                    pass
+            if not company_existed:
+                try:
+                    company_dir.rmdir()
+                except OSError:
+                    pass
+            self._send_json(500, {"ok": False, "error": f"导入失败，已回滚本次新增文件：{exc}"})
+            return
+
+        self._send_json(200, {
+            "ok": True,
+            "imported": [line_rel],
+            "company": target_company,
+            "copiedMedia": len(prepared_media) - reused_media,
+            "reusedMedia": reused_media,
+            "warnings": package.get("warnings", []),
+        })
 
     def _do_import_zip(self, zip_data, target_company, conflict_mode, zip_company=""):
         """Execute import of previously uploaded zip data.

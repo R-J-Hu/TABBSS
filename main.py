@@ -117,7 +117,8 @@ def main():
     ROOT = str(_RES_DIR)
     DATA_ROOT = str((_APP_DIR / '报站线路文件库').resolve())
 
-    # Merge staged update lines from a previous installer upgrade (union by company→line).
+    # Merge staged installer data before the HTTP server can observe it.
+    merge_error = None
     try:
         _scripts_dir = str(Path(_RES_DIR) / 'scripts')
         if _scripts_dir not in sys.path:
@@ -127,7 +128,16 @@ def main():
         if _merge.get('merged'):
             print('Merged update lines: ' + str(_merge['merged']))
     except Exception as e:
+        merge_error = e
         print('Merge update lines skipped: ' + str(e))
+
+    # The NSIS installer uses this mode to finish its data transaction without
+    # opening the application window. A non-zero exit leaves staging intact so
+    # the next launch can retry; no existing user file is removed.
+    if '--merge-update-only' in sys.argv[1:]:
+        if merge_error is not None:
+            raise SystemExit(2)
+        return
 
     # Parse --open-tabl argument for file association
     pending_tabl = None
