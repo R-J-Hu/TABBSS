@@ -661,7 +661,7 @@ class LocalHandler(SimpleHTTPRequestHandler):
         """Read the user-data index without falling back to legacy output data."""
         index_path = self.data_root / "index.json"
         if not index_path.exists():
-            return {"version": "V1.6.1", "companies": []}
+            return {"version": "V1.6.2", "companies": []}
         try:
             loaded = json.loads(index_path.read_text(encoding="utf-8-sig"))
         except Exception as exc:

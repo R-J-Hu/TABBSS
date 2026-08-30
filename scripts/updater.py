@@ -418,16 +418,16 @@ def launch_installer(path: Path, detached: bool = False) -> bool:
 def _read_data_index(index_path: Path) -> tuple[dict, bool]:
     """Read an index and report whether it was structurally usable."""
     if not index_path.exists():
-        return {"version": "V1.6.1", "companies": []}, False
+        return {"version": "V1.6.2", "companies": []}, False
     try:
         loaded = json.loads(index_path.read_text(encoding="utf-8-sig"))
         if not isinstance(loaded, dict) or not isinstance(loaded.get("companies", []), list):
             raise ValueError("invalid index structure")
-        loaded.setdefault("version", "V1.6.1")
+        loaded.setdefault("version", "V1.6.2")
         loaded.setdefault("companies", [])
         return loaded, True
     except Exception:
-        return {"version": "V1.6.1", "companies": []}, False
+        return {"version": "V1.6.2", "companies": []}, False
 
 
 def _sha256_file(path: Path) -> str:

@@ -73,7 +73,7 @@ def build_filtered_data(dst, selection, index_path=DATA_DIR / "index.json"):
     but only the selected INI files. Unselected lines = no INI, but audio stays."""
     if not selection:
         (dst / "index.json").write_text(
-            json.dumps({"version": "V1.51", "companies": []}, ensure_ascii=False, indent=2), encoding="utf-8")
+            json.dumps({"version": "V1.6.2", "companies": []}, ensure_ascii=False, indent=2), encoding="utf-8")
         (dst / ".trash").mkdir(exist_ok=True)
         return
     index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else {"companies": []}
@@ -142,7 +142,7 @@ def build_filtered_data(dst, selection, index_path=DATA_DIR / "index.json"):
                     if not item.is_dir():
                         shutil.copy2(item, d.parent / item.name)
     (dst / "index.json").write_text(
-        json.dumps({"version": "V1.51", "companies": filtered}, ensure_ascii=False, indent=2), encoding="utf-8")
+        json.dumps({"version": "V1.6.2", "companies": filtered}, ensure_ascii=False, indent=2), encoding="utf-8")
     (dst / ".trash").mkdir(exist_ok=True)
 
 

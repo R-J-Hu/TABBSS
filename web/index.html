@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>档案库报站器 内测版</title>
-  <link rel="stylesheet" href="./style.css?v=20260830&b=267&h=1" />
-  <link rel="stylesheet" href="./editor.css?v=20260830&b=267&h=1" />
-  <link rel="stylesheet" href="./ui-redesign.css?v=20260830&b=267&h=1" />
+  <link rel="stylesheet" href="./style.css?v=20260831&b=267&h=1" />
+  <link rel="stylesheet" href="./editor.css?v=20260831&b=267&h=1" />
+  <link rel="stylesheet" href="./ui-redesign.css?v=20260831&b=267&h=1" />
 </head>
 <body>
   <svg class="icon-defs" aria-hidden="true" focusable="false">
@@ -39,7 +39,7 @@
         <button type="button" id="devPanelToggle" class="rail-nav-item dev-nav-item"><i aria-hidden="true">🔨</i><span>开发者模式</span></button>
       </nav>
       <footer class="rail-footer">
-        <small>V1.6.1 Build 267<br>交通档案库版权所有</small>
+        <small>V1.6.2 Build 267<br>交通档案库版权所有</small>
         <a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener" id="bilibiliBtn" class="rail-social rail-social-bilibili" aria-label="交通档案库 Bilibili 主页"><img id="bilibiliIcon" src="" alt=""><span>BILIBILI 主页</span></a>
         <a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener" class="rail-social rail-social-gitee"><img id="giteeIcon" src="" alt=""><span>Gitee 主页</span></a>
         <a href="https://github.com/R-J-Hu/TABBSS/" target="_blank" rel="noopener" class="rail-social rail-social-github"><img id="githubIcon" src="" alt=""><span>Github 主页</span></a>
@@ -55,7 +55,7 @@
           <label class="topbar-select-label line-select"><span>线路</span><select id="routeSelect"></select></label>
           <button type="button" id="compatImportArchiveBtn" class="compat-import-archive-btn" hidden><svg class="ui-icon" aria-hidden="true"><use href="#icon-download"></use></svg><span>将当前线路导入档案库模式</span></button>
         </div>
-        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 267 2026-08-30 22:24:54</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
+        <div class="topbar-tools"><span class="build-badge" id="buildBadge">Build 267 2026-08-31 00:23:55</span><button id="reloadBtn" class="quiet-btn">↻ 重新加载</button></div>
       </header>
       <p id="editionWarning" class="edition-warning"></p>
 
@@ -96,7 +96,7 @@
         <ol id="queueView"></ol>
       </section>
 
-      <p class="version-tag" id="buildTag">版本信息：V1.6.1 — 新增可视化线路编辑器（三层架构：公司→线路→编辑）、规则编辑器组件、全局模版/各站规则/手按提示语编辑、模板创建/复制线路、校验系统（线路错误+音频警告分类）、媒体文件夹管理（排序/上传/删除）、高级文本编辑器语法高亮、线路重命名自动更新、车站/线路/公司拖拽排序。修复导入导出功能：zip中文文件名UTF-8编码、隐式站名语音文件收集（{本站}旧格式兼容）、导入公司路径重映射、冲突检测路径比较、导入后索引刷新、Content-Disposition中文编码。（Build 195 2026-06-01）
+      <p class="version-tag" id="buildTag">版本信息：V1.6.2 — 新增可视化线路编辑器（三层架构：公司→线路→编辑）、规则编辑器组件、全局模版/各站规则/手按提示语编辑、模板创建/复制线路、校验系统（线路错误+音频警告分类）、媒体文件夹管理（排序/上传/删除）、高级文本编辑器语法高亮、线路重命名自动更新、车站/线路/公司拖拽排序。修复导入导出功能：zip中文文件名UTF-8编码、隐式站名语音文件收集（{本站}旧格式兼容）、导入公司路径重映射、冲突检测路径比较、导入后索引刷新、Content-Disposition中文编码。（Build 195 2026-06-01）
 （Build 196 2026-06-04）修复公司级导入导出：导入详细错误日志、L0导入提示输入新公司名、导出文件缺失日志
 （Build 197 2026-06-13）导出容错：index.json中缺失的文件跳过而非中断整个导出；L0导入改为选公司弹窗
 （Build 198 2026-06-14）媒体文件夹增强：在系统打开、拖拽上传、复制/移动、多选批量操作、L2快捷入口；Logo加密加载；文档重组至insider_resource
@@ -156,6 +156,7 @@
       <p class="version-tag">（Build 265 2026-08-29）安装结构收口：全新安装不再创建或释放 output；覆盖升级保留旧 output 以兼容回退，并将其中可恢复的海峡线路信息及音频只增不覆盖迁移到“兼容模式-海峡报站器文件库”。</p>
       <p class="version-tag">（Build 266 2026-08-30）修复海峡兼容模式快速切换线路时旧请求覆盖新选择、重复并发解析卡顿；线路解析增加自动失效的内存缓存与同线程互斥。移除旧版按文件名/提示语推断首站欢迎语的额外注入，预报及重播均严格按海峡 INI 定义播放。</p>
       <p class="version-tag">（Build 267 2026-08-30）统一线路切换后的始发状态：无论档案库模式还是海峡兼容模式，新线路均回到上行第一站到站态（始发站待始发），并同步刷新方向下拉框及环线方向界面。</p>
+      <p class="version-tag">（Build 267 补充 2026-08-31）版本号由 V1.6.1 升至 V1.6.2（构建号不变），程序界面与更新发布版本统一显示 V1.6.2。</p>
 
       <section class="debug-panel" id="debugPanel">
       <h2>Dev 调试信息</h2>
@@ -289,7 +290,7 @@
       <h3>交通档案库报站模拟器</h3>
       <p>面向公交报站线路文件的本地管理、编辑与播放模拟工具。</p>
       <dl>
-        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6.1 (Build 267)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
+        <div class="about-version-row"><dt>版本</dt><dd id="aboutVersionText">V1.6.2 (Build 267)</dd><button type="button" id="aboutCheckUpdateBtn" class="about-check-update">检查更新</button></div>
         <div><dt>作者</dt><dd>@爱困的RJ（R.J. Hu）</dd></div>
         <div><dt>Bilibili 主页</dt><dd><a href="https://space.bilibili.com/3546768098724617" target="_blank" rel="noopener">点击前往</a></dd></div>
         <div><dt>Gitee 主页</dt><dd><a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noopener">点击前往</a></dd></div>
@@ -298,10 +299,10 @@
     </div>
   </aside>
 
-  <script src="./editor-core.js?v=20260830&b=267&h=1"></script>
-  <script src="./editor-components.js?v=20260830&b=267&h=1"></script>
-  <script src="./main.js?v=20260830&b=267&h=1"></script>
-  <script src="./editor-ui.js?v=20260830&b=267&h=1"></script>
-  <script src="./panel-controller.js?v=20260830&b=267&h=1"></script>
+  <script src="./editor-core.js?v=20260831&b=267&h=1"></script>
+  <script src="./editor-components.js?v=20260831&b=267&h=1"></script>
+  <script src="./main.js?v=20260831&b=267&h=1"></script>
+  <script src="./editor-ui.js?v=20260831&b=267&h=1"></script>
+  <script src="./panel-controller.js?v=20260831&b=267&h=1"></script>
 </body>
 </html>
