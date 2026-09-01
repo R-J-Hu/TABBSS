@@ -96,7 +96,17 @@ h1 span { color: var(--blue); }
 .section-heading { max-width: 720px; }
 .section h2 { margin: 0; font-size: clamp(34px, 4vw, 54px); line-height: 1.16; letter-spacing: -.045em; }
 .section-heading > p:last-child { margin: 20px 0 0; color: var(--muted); line-height: 1.8; }
-.feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 54px; }
+
+.video-section { background: #fff; }
+.video-heading { max-width: none; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr); gap: 70px; align-items: end; }
+.video-heading > p { margin: 0 0 5px; color: var(--muted); line-height: 1.8; }
+.video-frame { position: relative; aspect-ratio: 16 / 9; margin-top: 48px; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: #0d1726; box-shadow: 0 24px 60px rgba(21,32,52,.18); }
+.video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+.video-fallback { margin: 16px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+.video-fallback a { color: var(--blue); font-weight: 700; }
+
+.features { background: var(--paper); }
+.feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 54px; }
 .feature-grid article { min-height: 260px; padding: 28px; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: transform .2s ease, box-shadow .2s ease; }
 .feature-grid article:hover { transform: translateY(-5px); box-shadow: 0 18px 38px rgba(35,58,87,.09); }
 .feature-grid article > span { color: var(--blue); font: 800 12px/1 monospace; }
@@ -126,6 +136,7 @@ footer div { display: flex; gap: 22px; }
   .hero-copy { max-width: 760px; }
   .app-preview { max-width: 720px; transform: none; }
   .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .video-heading { grid-template-columns: 1fr; gap: 20px; }
   .download-card { grid-template-columns: 1fr; gap: 38px; }
   .download-actions { max-width: 320px; }
 }
@@ -148,6 +159,7 @@ footer div { display: flex; gap: 22px; }
   .trust-strip { grid-template-columns: 1fr; padding: 0 20px; }
   .trust-strip div, .trust-strip div:first-child { min-height: 86px; padding: 20px; border-left: 0; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.12); }
   .section { padding: 76px 20px; }
+  .video-frame { margin-top: 34px; border-radius: 12px; }
   .feature-grid { grid-template-columns: 1fr; margin-top: 38px; }
   .feature-grid article { min-height: 220px; }
   .download-section { padding-top: 0; }
