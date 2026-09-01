@@ -12,13 +12,7 @@
 <body>
   <header class="site-header">
     <a class="brand" href="#top" aria-label="档案库报站模拟器首页">
-      <svg class="brand-mark" viewBox="0 0 361 361" aria-hidden="true">
-        <g transform="translate(26.8406 34.0322)" fill="none" stroke="currentColor" stroke-width="12">
-          <polyline points="13.945 0 209.834 0 0 293.301"/>
-          <path d="M104.917 277.967 260.917 60.945v217.022M158.66 204.609h101.897"/>
-          <circle cx="181.159" cy="151.968" r="120" stroke-width="11" stroke-dasharray="225 36 70 36 220 36"/>
-        </g>
-      </svg>
+      <img class="brand-mark" src="./assets/tabbss-logo.png" alt="">
       <span>档案库报站模拟器</span>
     </a>
     <nav aria-label="主导航">
@@ -33,8 +27,8 @@
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">交通档案库 · TABBSS</p>
-        <h1>让每一段报站档案<br><span>都能重新响起</span></h1>
-        <p class="hero-lead">从线路规则编辑、音频管理到真实报站模拟，一套桌面工具完成公交报站档案的整理、校验与播放。</p>
+        <h1>好用的报站模拟器<br><span>DIY 你的线路，如此轻松</span></h1>
+        <p class="hero-lead">从播放、编辑到分享，一套桌面工具完成公交报站线路的制作、维护与模拟运行。</p>
         <div class="hero-actions">
           <a class="button button-primary download-link" href="https://gitee.com/rjhu/TABBSS/releases" data-download="gitee">
             <span>下载 Windows 最新版</span>
@@ -45,27 +39,32 @@
         <p class="support-note">免费使用 · Windows 10 / 11 · Gitee 国内下载</p>
       </div>
 
-      <div class="app-preview" aria-label="播放器界面示意">
-        <div class="preview-bar">
-          <span class="preview-logo">T</span>
-          <div><b>示例公交集团</b><small>线路运行控制台</small></div>
-          <span class="preview-pill">运行中</span>
+      <div class="app-preview" aria-label="档案库报站模拟器播放器顶部示意">
+        <div class="app-topbar">
+          <div class="app-brand"><img src="./assets/tabbss-logo.png" alt=""><strong>交通档案库<br>报站模拟器</strong></div>
+          <label>模式 <b>档案库新架构</b></label>
+          <label>公司 <b>示例现代有轨电车</b></label>
+          <label>线路 <b>1号线（演示）</b></label>
         </div>
-        <div class="route-status">
-          <small>正在前往</small>
-          <strong>展览中心</strong>
-          <span>Exhibition Center</span>
-        </div>
-        <div class="route-line" aria-hidden="true">
-          <div class="stop passed"><i>1</i><span>科创园</span></div>
-          <div class="stop active"><i>2</i><span>展览中心</span></div>
-          <div class="stop"><i>3</i><span>文景东路</span></div>
-          <div class="stop"><i>4</i><span>滨海南区</span></div>
-        </div>
-        <div class="preview-controls">
-          <button type="button" tabindex="-1">预报</button>
-          <button type="button" class="control-main" tabindex="-1">播报下一条</button>
-          <button type="button" tabindex="-1">到站</button>
+        <div class="app-player">
+          <div class="station-panel">
+            <span class="state-badge">▶ 预报 FORECAST</span>
+            <strong>科创园站</strong>
+            <small>Technology Park</small>
+            <div class="wave-line" aria-label="播放波形动画">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+          </div>
+          <div class="line-panel">
+            <div class="line-title"><strong>1号线 → 科创园站</strong><small>上行 · 第二站预报</small></div>
+            <div class="route-line" aria-hidden="true">
+              <div class="stop passed"><i>1</i><span>展览中心站<small>Exhibition Center</small></span></div>
+              <div class="stop active"><i>2</i><span>科创园站<small>Technology Park</small></span></div>
+              <div class="stop"><i>3</i><span>文景东路站<small>Wenjing East Road</small></span></div>
+              <div class="stop"><i>4</i><span>城市广场站<small>City Plaza</small></span></div>
+              <div class="stop"><i>5</i><span>新城站<small>New Town</small></span></div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -105,12 +104,30 @@
         <p>从真实播放到复杂规则维护，把原本分散、重复的工作集中到一个清晰的工作台。</p>
       </div>
       <div class="feature-grid">
-        <article><span>01</span><h3>清晰好用的播放界面</h3><p>一个按键自动播放下一条，线路状态和播放顺序一目了然，完整模拟实际报站流程。</p></article>
-        <article><span>02</span><h3>更简单的线路编辑</h3><p>自动识别站名和站序；标签式规则编辑器边输入边匹配文件，复杂规则也能轻松完成。</p></article>
-        <article><span>03</span><h3>自由定义报站规则</h3><p>支持首站、普通站和终点站规则模板，也能针对任意站点单独设置特殊播报规则。</p></article>
-        <article><span>04</span><h3>高效维护多条线路</h3><p>一键将规则应用到同公司其他线路；媒体文件集中共用，一处更新即可同步生效。</p></article>
-        <article><span>05</span><h3>线路分享简单直接</h3><p>线路文件一键导出、一键导入，方便在好友和协作者之间交换完整报站资料。</p></article>
-        <article><span>06</span><h3>兼容与持续升级</h3><p>支持导入其他报站器资料，自动检查正式版本；软件完全免费，线路无需提交审核。</p></article>
+        <article>
+          <div class="feature-visual visual-player"><div class="mini-top">交通档案库报站模拟器 <b>演示线路</b></div><div class="mini-map"><span class="mini-arrive">到站 ARRIVING</span><strong>中央广场站</strong><div class="mini-route"><i></i><i></i><i></i><i></i></div></div><div class="mini-controls"><b>播报下一条</b><span>预报</span><span>到站</span></div></div>
+          <span>01</span><h3>清晰好用的播放界面</h3><p>一个按键自动播放下一条，线路状态和播放顺序一目了然，完整模拟实际报站流程。</p>
+        </article>
+        <article>
+          <div class="feature-visual visual-editor"><div class="mini-tabs">① 基础信息　② 音频文件　③ 车站信息　<b>④ 全局规则</b></div><small>默认预报规则</small><div class="rule-row"><em>预报前.wav</em><em class="param">下站中文</em><em>乘客请准备.wav</em><i>下</i><button>＋</button></div><div class="file-list"><span>下一站提示.mp3</span><span>乘客请准备.wav</span><span>请注意安全.mp3</span></div></div>
+          <span>02</span><h3>更简单的线路编辑</h3><p>自动识别站名和站序；标签式规则编辑器边输入边匹配文件，复杂规则也能轻松完成。</p>
+        </article>
+        <article>
+          <div class="feature-visual visual-rules"><div class="mini-tabs">① 基础信息　② 音频文件　③ 车站信息　④ 全局规则　<b>⑤ 各站规则</b></div><h4><i></i> 6　示例学校站</h4><small>预报规则</small><div class="rule-row"><em>预报前.wav</em><em class="param">下站中文</em><em>乘客请准备.wav</em><em>换乘</em></div><small>到站规则</small><div class="rule-row muted"><em>叮咚.mp3</em><em class="green">本站中文</em><em>到了.wav</em></div></div>
+          <span>03</span><h3>自由定义报站规则</h3><p>支持首站、普通站和终点站规则模板，也能针对任意站点单独设置特殊播报规则。</p>
+        </article>
+        <article>
+          <div class="feature-visual visual-share"><div class="audio-file">✓<b>站名.mp3</b></div><div class="share-company">示例公交公司</div><div class="share-branches"><span>1路-站名</span><span>2路-站名</span><span>3路-站名</span></div></div>
+          <span>04</span><h3>高效维护多条线路</h3><p>一键将规则应用到同公司其他线路；媒体文件集中共用，一处更新即可同步生效。</p>
+        </article>
+        <article>
+          <div class="feature-visual visual-export"><div class="mini-editor-bg"><b>导出线路文件</b><span>将当前线路保存为可分享的 .tabl 文件</span><button>⇩ 导出</button></div><div class="download-toast"><strong>下载</strong><span>▧　演示线路.tabl</span><small>打开文件</small></div></div>
+          <span>05</span><h3>线路分享简单直接</h3><p>线路文件一键导出、一键导入，方便在好友和协作者之间交换完整报站资料。</p>
+        </article>
+        <article>
+          <div class="feature-visual visual-update"><div class="update-modal"><small>UPDATE</small><strong>发现新版本</strong><hr><b>新版本 v1.6.2 Build 267</b><p>持续修复问题、完善播放与线路编辑体验。</p><span>×</span></div></div>
+          <span>06</span><h3>兼容与持续升级</h3><p>支持导入其他报站器资料，自动检查正式版本；软件完全免费，线路无需提交审核。</p>
+        </article>
       </div>
     </section>
 
