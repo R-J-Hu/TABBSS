@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="档案库报站模拟器：面向公交报站档案整理、线路编辑与模拟播放的 Windows 桌面工具。">
+  <meta name="theme-color" content="#152034">
+  <title>档案库报站模拟器</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="档案库报站模拟器首页">
+      <svg class="brand-mark" viewBox="0 0 361 361" aria-hidden="true">
+        <g transform="translate(26.8406 34.0322)" fill="none" stroke="currentColor" stroke-width="12">
+          <polyline points="13.945 0 209.834 0 0 293.301"/>
+          <path d="M104.917 277.967 260.917 60.945v217.022M158.66 204.609h101.897"/>
+          <circle cx="181.159" cy="151.968" r="120" stroke-width="11" stroke-dasharray="225 36 70 36 220 36"/>
+        </g>
+      </svg>
+      <span>档案库报站模拟器</span>
+    </a>
+    <nav aria-label="主导航">
+      <a href="#features">功能</a>
+      <a href="#download">下载</a>
+      <a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noreferrer">Gitee</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">交通档案库 · TABBSS</p>
+        <h1>让每一段报站档案<br><span>都能重新响起</span></h1>
+        <p class="hero-lead">从线路规则编辑、音频管理到真实报站模拟，一套桌面工具完成公交报站档案的整理、校验与播放。</p>
+        <div class="hero-actions">
+          <a class="button button-primary download-link" href="https://gitee.com/rjhu/TABBSS/releases" data-download="gitee">
+            <span>下载 Windows 最新版</span>
+            <small class="download-summary">正在读取版本信息…</small>
+          </a>
+          <a class="button button-secondary" href="#features">了解功能</a>
+        </div>
+        <p class="support-note">免费使用 · Windows 10 / 11 · Gitee 国内下载</p>
+      </div>
+
+      <div class="app-preview" aria-label="播放器界面示意">
+        <div class="preview-bar">
+          <span class="preview-logo">T</span>
+          <div><b>示例公交集团</b><small>线路运行控制台</small></div>
+          <span class="preview-pill">运行中</span>
+        </div>
+        <div class="route-status">
+          <small>正在前往</small>
+          <strong>展览中心</strong>
+          <span>Exhibition Center</span>
+        </div>
+        <div class="route-line" aria-hidden="true">
+          <div class="stop passed"><i>1</i><span>科创园</span></div>
+          <div class="stop active"><i>2</i><span>展览中心</span></div>
+          <div class="stop"><i>3</i><span>文景东路</span></div>
+          <div class="stop"><i>4</i><span>滨海南区</span></div>
+        </div>
+        <div class="preview-controls">
+          <button type="button" tabindex="-1">预报</button>
+          <button type="button" class="control-main" tabindex="-1">播报下一条</button>
+          <button type="button" tabindex="-1">到站</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="trust-strip" aria-label="产品特点">
+      <div><strong>本地运行</strong><span>线路与音频保存在你的电脑</span></div>
+      <div><strong>可视化编辑</strong><span>线路、规则与媒体集中管理</span></div>
+      <div><strong>双源发布</strong><span>Gitee 主下载，GitHub 备用</span></div>
+    </section>
+
+    <section class="features section" id="features">
+      <div class="section-heading">
+        <p class="eyebrow">核心能力</p>
+        <h2>为报站档案而生的完整工作台</h2>
+        <p>既能直接模拟运行，也能深入整理每条线路背后的规则和声音。</p>
+      </div>
+      <div class="feature-grid">
+        <article><span>01</span><h3>沉浸式报站模拟</h3><p>线路图、前往与到站状态、播放队列同步呈现，快捷完成整条线路的播报演示。</p></article>
+        <article><span>02</span><h3>可视化线路编辑</h3><p>按公司、线路、站点分层管理，支持规则编辑、拖拽排序、复制线路和模板创建。</p></article>
+        <article><span>03</span><h3>媒体与规则校验</h3><p>集中整理音频文件，检查线路错误和缺失语音，让复杂档案更容易维护。</p></article>
+        <article><span>04</span><h3>导入、导出与升级</h3><p>通过 .tabl 交换线路资料，自动检查正式版本，并在升级时保留已有线路数据。</p></article>
+      </div>
+    </section>
+
+    <section class="download-section section" id="download">
+      <div class="download-card">
+        <div>
+          <p class="eyebrow">获取最新版</p>
+          <h2>现在开始使用档案库报站模拟器</h2>
+          <p>适用于 Windows 10 / 11。安装后即可导入或创建你的报站线路。</p>
+          <dl>
+            <div><dt>版本</dt><dd id="versionText">V1.6.2 Build 267</dd></div>
+            <div><dt>发布日期</dt><dd id="publishedText">2026-08-31</dd></div>
+            <div><dt>安装包</dt><dd id="sizeText">44.2 MiB</dd></div>
+          </dl>
+        </div>
+        <div class="download-actions">
+          <a class="button button-light download-link" href="https://gitee.com/rjhu/TABBSS/releases" data-download="gitee">从 Gitee 下载</a>
+          <a class="text-link download-link" href="https://github.com/R-J-Hu/TABBSS/releases" data-download="github">GitHub 备用下载</a>
+          <a class="text-link" id="releasePageLink" href="https://gitee.com/rjhu/TABBSS/releases" target="_blank" rel="noreferrer">查看发行说明</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>档案库报站模拟器 · TABBSS</span>
+    <div><a href="https://gitee.com/rjhu/TABBSS" target="_blank" rel="noreferrer">Gitee</a><a href="https://github.com/R-J-Hu/TABBSS" target="_blank" rel="noreferrer">GitHub</a></div>
+  </footer>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
